@@ -2,7 +2,9 @@ ARG SYSTEM=debian
 ARG JAVA_VERSION=19
 FROM azul/zulu-openjdk-${SYSTEM}:${JAVA_VERSION}-latest
 
-RUN apt-get update -y \
+RUN sed -i.bak 's/deb.debian.org/mirrors.cernet.edu.cn/g' /etc/apt/sources.list \
+    && sed -i.bak 's|security.debian.org/debian-security|mirrors.cernet.edu.cn/debian-security|g' /etc/apt/sources.list \
+    && apt-get update -y \
     && apt-get install -y curl ca-certificates openssl git tar sqlite3 fontconfig tzdata iproute2 gettext-base wget build-essential libncursesw5-dev libssl-dev libsqlite3-dev tk-dev libgdbm-dev libc6-dev libbz2-dev libffi-dev zlib1g-dev \
     && cd /tmp \
     && wget https://www.python.org/ftp/python/3.11.8/Python-3.11.8.tgz \
