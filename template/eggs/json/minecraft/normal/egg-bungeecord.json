@@ -48,7 +48,7 @@
             "default_value": "1024",
             "user_viewable": true,
             "user_editable": true,
-            "rules": "integer",
+            "rules": "required|integer",
             "field_type": "text"
         },
         {
@@ -58,7 +58,7 @@
             "default_value": "1024",
             "user_viewable": true,
             "user_editable": true,
-            "rules": "integer",
+            "rules": "required|integer",
             "field_type": "text"
         },
         {

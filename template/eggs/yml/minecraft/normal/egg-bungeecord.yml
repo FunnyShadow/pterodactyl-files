@@ -56,7 +56,7 @@ variables:
   default_value: '1024'
   user_viewable: true
   user_editable: true
-  rules: integer
+  rules: required|integer
   field_type: text
 - name: 内存分配最大值
   description: |-
@@ -66,7 +66,7 @@ variables:
   default_value: '1024'
   user_viewable: true
   user_editable: true
-  rules: integer
+  rules: required|integer
   field_type: text
 - name: 包装参数
   description: |-
