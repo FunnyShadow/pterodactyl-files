@@ -24,6 +24,12 @@ config:
                 "server-port": "{{server.build.default.port}}",
                 "query.port": "{{server.build.default.port}}"
             }
+        },
+        "server/eula.txt": {
+            "parser": "properties",
+            "find": {
+                "eula": "true"
+            }
         }
     }
   startup: |-
@@ -34,20 +40,7 @@ config:
   stop: stop
 scripts:
   installation:
-    script: |-
-      #!/bin/bash
-      
-      echo Pre-checking now, please wait...
-      
-      if "${MIN_MEM}" -gt "${MAX_MEM}"; then
-          echo "Maximum memory (value: ${MAX_MEM}) less than minimum memory (value: ${MIN_MEM})"
-          abort "An error has been detected in the variables, please check them."
-      fi
-      
-      abort() {
-          echo "$1"
-          exit 1
-      }
+    script: ""
     container: bluefunny/pterodactyl:installer
     entrypoint: bash
 variables:
@@ -87,7 +80,7 @@ variables:
   default_value: ''
   user_viewable: true
   user_editable: true
-  rules: string
+  rules: nullable|string
   field_type: text
 - name: 虚拟机参数
   description: 在 -jar 参数前传入的参数

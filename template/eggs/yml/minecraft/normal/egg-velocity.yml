@@ -2,8 +2,8 @@ _comment: 'DO NOT EDIT: FILE GENERATED AUTOMATICALLY BY PTERODACTYL PANEL - PTER
 meta:
   version: PTDL_v2
   update_url:
-exported_at: '2024-02-14T13:02:20+08:00'
-name: BungeeCord / Waterfall
+exported_at: '2024-02-14T13:02:21+08:00'
+name: Velocity
 author: noreply@trcloud.network
 description:
 features:
@@ -17,23 +17,20 @@ startup: '{{OPTIONS}} java -XX:MaxRAM={{SERVER_MEMORY}}M -Xms{{MIN_MEM}}M -Xmx{{
 config:
   files: |-
     {
-        "server/config.yml": {
-            "parser": "yaml",
+        "server/velocity.toml": {
+            "parser": "toml",
             "find": {
-                "listeners[0].query_port": "{{server.build.default.port}}",
-                "listeners[0].host": "0.0.0.0:{{server.build.default.port}}",
-                "servers.*.address": {
-                    "regex:^(127\\.0\\.0\\.1|localhost)(:\\d{1,5})?$": "{{config.docker.interface}}$2"
-                }
+                "bind": "0.0.0.0:{{server.build.default.port}}",
+                "query.port": "{{server.build.default.port}}"
             }
         }
     }
   startup: |-
     {
-        "done": "Listening on "
+        "done": "]: Done ("
     }
   logs: '{}'
-  stop: end
+  stop: exit
 scripts:
   installation:
     script: ""
@@ -56,7 +53,7 @@ variables:
   default_value: '1024'
   user_viewable: true
   user_editable: true
-  rules: integer
+  rules: required|integer
   field_type: text
 - name: 内存分配最大值
   description: |-
@@ -66,7 +63,7 @@ variables:
   default_value: '1024'
   user_viewable: true
   user_editable: true
-  rules: integer
+  rules: required|integer
   field_type: text
 - name: 包装参数
   description: |-
