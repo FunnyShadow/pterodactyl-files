@@ -60,7 +60,12 @@ config:
   stop: stop
 scripts:
   installation:
-    script: \
+    script: |-
+      #!/bin/bash
+      cd /mnt/server
+      rm -rf config.yml
+      mcdreforged init
+      sed -i "0,/language: en_us/s//language: zh_cn/" config.yml
     container: bluefunny/pterodactyl:installer-mcdr
     entrypoint: bash
 variables:

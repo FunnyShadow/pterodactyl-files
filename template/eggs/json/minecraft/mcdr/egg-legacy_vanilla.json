@@ -37,7 +37,7 @@
     },
     "scripts": {
         "installation": {
-            "script": "\\",
+            "script": "#!/bin/bash\ncd /mnt/server\nrm -rf config.yml\nmcdreforged init\nsed -i \"0,/language: en_us/s//language: zh_cn/\" config.yml",
             "container": "bluefunny/pterodactyl:installer-mcdr",
             "entrypoint": "bash"
         }

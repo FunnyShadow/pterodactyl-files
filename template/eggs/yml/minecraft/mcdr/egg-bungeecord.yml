@@ -60,9 +60,6 @@ scripts:
       rm -rf config.yml
       mcdreforged init
       sed -i "0,/language: en_us/s//language: zh_cn/" config.yml
-      sed -i "0,/start_command: .*/s//start_command: ${MCDR_START_COMMAND}/" config.yml
-      sed -i "0,/handler: .*/s//handler: ${MCDR_HANDLER}/" config.yml
-      sed -i "0,/all: .*/s//all: \${MCDR_DEBUG}/" config.yml
     container: bluefunny/pterodactyl:installer-mcdr
     entrypoint: bash
 variables:
