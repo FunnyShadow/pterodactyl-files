@@ -133,7 +133,7 @@ variables:
     启用 MCDR 的调试模式
     开启后，将会有大量的 DEBUG 输出，可能会导致服务器卡顿以及异常的硬盘占用，请慎重选择
   env_variable: MCDR_DEBUG
-  default_value: 0
+  default_value: "0"
   user_viewable: true
   user_editable: true
   rules: required|bool|in:0,1
