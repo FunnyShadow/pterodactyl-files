@@ -30,7 +30,7 @@
     "file_denylist": [],
     "startup": "{{OPTIONS}} python3 -m mcdreforged",
     "config": {
-        "files": "{\n    \"server/config.yml\": {\n        \"parser\": \"yaml\",\n        \"find\": {\n            \"listeners[0].query_port\": \"{{server.build.default.port}}\",\n            \"listeners[0].host\": \"0.0.0.0:{{server.build.default.port}}\",\n            \"servers.*.address\": {\n                \"regex:^(127\\\\.0\\\\.0\\\\.1|localhost)(:\\\\d{1,5})?$\": \"{{config.docker.interface}}$2\"\n            }\n        }\n    },\n    \"config.yml\": {\n        \"parser\": \"yaml\",\n        \"find\": {\n            \"handler\": \"{{env.MCDR_HANDLER}}\",\n            \"start_command\": \"{{env.MCDR_START_COMMAND}}\",\n            \"debug[0].all\": \"{{env.MCDR_DEBUG}}\"\n        }\n    }\n}",
+        "files": "{\n    \"server/config.yml\": {\n        \"parser\": \"yaml\",\n        \"find\": {\n            \"listeners[0].query_port\": \"{{server.build.default.port}}\",\n            \"listeners[0].host\": \"0.0.0.0:{{server.build.default.port}}\",\n            \"servers.*.address\": {\n                \"regex:^(127\\\\.0\\\\.0\\\\.1|localhost)(:\\\\d{1,5})?$\": \"{{config.docker.interface}}$2\"\n            }\n        }\n    },\n    \"config.yml\": {\n        \"parser\": \"yaml\",\n        \"find\": {\n            \"handler\": \"{{env.MCDR_HANDLER}}\",\n            \"start_command\": \"{{env.MCDR_START_COMMAND}}\",\n            \"debug.all\": \"{{env.MCDR_DEBUG}}\"\n        }\n    }\n}",
         "startup": "{\n    \"done\": \"Listening on \"\n}",
         "logs": "{}",
         "stop": "end"
@@ -117,10 +117,10 @@
             "name": "MCDR \u8c03\u8bd5\u6a21\u5f0f",
             "description": "\u542f\u7528 MCDR \u7684\u8c03\u8bd5\u6a21\u5f0f\n\u5f00\u542f\u540e\uff0c\u5c06\u4f1a\u6709\u5927\u91cf\u7684 DEBUG \u8f93\u51fa\uff0c\u53ef\u80fd\u4f1a\u5bfc\u81f4\u670d\u52a1\u5668\u5361\u987f\u4ee5\u53ca\u5f02\u5e38\u7684\u786c\u76d8\u5360\u7528\uff0c\u8bf7\u614e\u91cd\u9009\u62e9",
             "env_variable": "MCDR_DEBUG",
-            "default_value": "false",
+            "default_value": 0,
             "user_viewable": true,
             "user_editable": true,
-            "rules": "required|string|in:true,false",
+            "rules": "required|bool|in:0,1",
             "field_type": "text"
         }
     ]

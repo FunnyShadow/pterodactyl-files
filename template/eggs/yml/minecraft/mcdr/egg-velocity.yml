@@ -41,7 +41,7 @@ config:
             "find": {
                 "handler": "{{env.MCDR_HANDLER}}",
                 "start_command": "{{env.MCDR_START_COMMAND}}",
-                "debug[0].all": "{{env.MCDR_DEBUG}}"
+                "debug.all": "{{env.MCDR_DEBUG}}"
             }
         }
     }
@@ -133,8 +133,8 @@ variables:
     启用 MCDR 的调试模式
     开启后，将会有大量的 DEBUG 输出，可能会导致服务器卡顿以及异常的硬盘占用，请慎重选择
   env_variable: MCDR_DEBUG
-  default_value: 'false'
+  default_value: 0
   user_viewable: true
   user_editable: true
-  rules: required|string|in:true,false
+  rules: required|bool|in:0,1
   field_type: text
