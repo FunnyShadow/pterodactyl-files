@@ -4,8 +4,8 @@
         "version": "PTDL_v2",
         "update_url": null
     },
-    "exported_at": "2024-02-14T13:02:07+08:00",
-    "name": "Waterfall",
+    "exported_at": "2024-02-14T13:02:09+08:00",
+    "name": "Vanilla",
     "author": "noreply@trcloud.network",
     "description": null,
     "features": null,
@@ -30,14 +30,14 @@
     "file_denylist": [],
     "startup": "{{OPTIONS}} python3 -m mcdreforged",
     "config": {
-        "files": "{\n    \"server/config.yml\": {\n        \"parser\": \"yaml\",\n        \"find\": {\n            \"listeners[0].query_port\": \"{{server.build.default.port}}\",\n            \"listeners[0].host\": \"0.0.0.0:{{server.build.default.port}}\",\n            \"servers.*.address\": {\n                \"regex:^(127\\\\.0\\\\.0\\\\.1|localhost)(:\\\\d{1,5})?$\": \"{{config.docker.interface}}$2\"\n            }\n        }\n    },\n    \"config.yml\": {\n        \"parser\": \"yaml\",\n        \"find\": {\n            \"handler\": \"{{env.MCDR_HANDLER}}\",\n            \"start_command\": \"{{env.MCDR_START_COMMAND}}\",\n            \"debug[0].all\": \"{{env.MCDR_DEBUG}}\"\n        }\n    }\n}",
-        "startup": "{\n    \"done\": \"Listening on \"\n}",
+        "files": "{\n    \"server/server.properties\": {\n        \"parser\": \"properties\",\n        \"find\": {\n            \"server-ip\": \"0.0.0.0\",\n            \"server-port\": \"{{server.build.default.port}}\",\n            \"query.port\": \"{{server.build.default.port}}\"\n        }\n    },\n    \"server/eula.txt\": {\n        \"parser\": \"properties\",\n        \"find\": {\n            \"eula\": \"true\"\n        }\n    },\n    \"config.yml\": {\n        \"parser\": \"yaml\",\n        \"find\": {\n            \"handler\": \"{{env.MCDR_HANDLER}}\",\n            \"start_command\": \"{{env.MCDR_START_COMMAND}}\",\n            \"debug[0].all\": \"{{env.MCDR_DEBUG}}\"\n        }\n    }\n}",
+        "startup": "{\n    \"done\": \")! For help, type \"\n}",
         "logs": "{}",
-        "stop": "end"
+        "stop": "stop"
     },
     "scripts": {
         "installation": {
-            "script": "#!/bin/bash\ncd /mnt/server\nrm -rf config.yml\nmcdreforged init\nsed -i \"0,/language: en_us/s//language: zh_cn/\" config.yml\nsed -i \"0,/start_command: .*/s//start_command: ${MCDR_START_COMMAND}/\" config.yml\nsed -i \"0,/handler: .*/s//handler: ${MCDR_HANDLER}/\" config.yml\nsed -i \"0,/all: .*/s//all: \\${MCDR_DEBUG}/\" config.yml",
+            "script": "#!/bin/bash\ncd /mnt/server\nrm -rf config.yml\nmcdreforged init\nsed -i \"0,/language: en_us/s//language: zh_cn/\" config.yml\nsed -i \"0,/start_command: .*/s//start_command: ${MCDR_START_COMMAND}/\" config.yml\nsed -i \"0,/handler: .*/s//handler: ${MCDR_HANDLER}/\" config.yml",
             "container": "bluefunny/pterodactyl:installer-mcdr",
             "entrypoint": "bash"
         }
@@ -87,7 +87,7 @@
             "name": "\u865a\u62df\u673a\u53c2\u6570",
             "description": "\u5728 -jar \u53c2\u6570\u524d\u4f20\u5165\u7684\u53c2\u6570",
             "env_variable": "JAVA_OPTIONS",
-            "default_value": "-XX:+UseG1GC -XX:G1HeapRegionSize=4M -XX:+UnlockExperimentalVMOptions -XX:+ParallelRefProcEnabled -XX:+AlwaysPreTouch -XX:MaxInlineLevel=15 -Dterminal.jline=false -Dterminal.ansi=true",
+            "default_value": "-XX:+UnlockExperimentalVMOptions -XX:+UnlockDiagnosticVMOptions -XX:+AlwaysActAsServerClassMachine -XX:+AlwaysPreTouch -XX:+DisableExplicitGC -XX:+UseNUMA -XX:NmethodSweepActivity=1 -XX:ReservedCodeCacheSize=400M -XX:NonNMethodCodeHeapSize=12M -XX:ProfiledCodeHeapSize=194M -XX:NonProfiledCodeHeapSize=194M -XX:-DontCompileHugeMethods -XX:MaxNodeLimit=240000 -XX:NodeLimitFudgeFactor=8000 -XX:+UseVectorCmov -XX:+PerfDisableSharedMem -XX:+UseFastUnorderedTimeStamps -XX:+UseCriticalJavaThreadPriority -XX:ThreadPriorityPolicy=1 -XX:AllocatePrefetchStyle=3 -XX:+UseZGC -XX:AllocatePrefetchStyle=1 -XX:-ZProactive -Dterminal.jline=false -Dterminal.ansi=true",
             "user_viewable": true,
             "user_editable": true,
             "rules": "nullable|string",
@@ -107,7 +107,7 @@
             "name": "MCDR \u670d\u52a1\u7aef\u5904\u7406\u5668",
             "description": "MCDR \u914d\u7f6e\u6587\u4ef6\u4e2d\u7684 handler \u9009\u9879\u7684\u503c\n!!! \u8bf7\u52ff\u4fee\u6539 config.yml \u4e2d handler \u9009\u9879\u7684\u503c, \u9664\u975e\u4f60\u77e5\u9053\u4f60\u5728\u5e72\u4ec0\u4e48 !!!",
             "env_variable": "MCDR_HANDLER",
-            "default_value": "waterfall_handler",
+            "default_value": "vanlia_handler",
             "user_viewable": true,
             "user_editable": false,
             "rules": "required|regex:/^[a-zA-Z0-9_]+$/",

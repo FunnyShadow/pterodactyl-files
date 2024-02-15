@@ -37,7 +37,20 @@ config:
                 "query.port": "{{server.build.default.port}}"
             }
         },
-        "server/eula.txt": "eula=true"
+        "server/eula.txt": {
+            "parser": "properties",
+            "find": {
+                "eula": "true"
+            }
+        },
+        "config.yml": {
+            "parser": "yaml",
+            "find": {
+                "handler": "{{env.MCDR_HANDLER}}",
+                "start_command": "{{env.MCDR_START_COMMAND}}",
+                "debug[0].all": "{{env.MCDR_DEBUG}}"
+            }
+        }
     }
   startup: |-
     {

@@ -2,8 +2,8 @@ _comment: 'DO NOT EDIT: FILE GENERATED AUTOMATICALLY BY PTERODACTYL PANEL - PTER
 meta:
   version: PTDL_v2
   update_url:
-exported_at: '2024-02-14T13:02:11+08:00'
-name: Modern Bukkit
+exported_at: '2024-02-14T13:02:10+08:00'
+name: Legacy Vanilla
 author: noreply@trcloud.network
 description:
 features:
@@ -60,15 +60,7 @@ config:
   stop: stop
 scripts:
   installation:
-    script: |-
-      #!/bin/bash
-      cd /mnt/server
-      rm -rf config.yml
-      mcdreforged init
-      sed -i "0,/language: en_us/s//language: zh_cn/" config.yml
-      sed -i "0,/start_command: .*/s//start_command: ${MCDR_START_COMMAND}/" config.yml
-      sed -i "0,/handler: .*/s//handler: ${MCDR_HANDLER}/" config.yml
-      sed -i "0,/all: .*/s//all: \${MCDR_DEBUG}/" config.yml
+    script: \
     container: bluefunny/pterodactyl:installer-mcdr
     entrypoint: bash
 variables:
@@ -133,7 +125,7 @@ variables:
     MCDR 配置文件中的 handler 选项的值
     !!! 请勿修改 config.yml 中 handler 选项的值, 除非你知道你在干什么 !!!
   env_variable: MCDR_HANDLER
-  default_value: bukkit14_handler
+  default_value: beta18_handler
   user_viewable: true
   user_editable: false
   rules: required|regex:/^[a-zA-Z0-9_]+$/

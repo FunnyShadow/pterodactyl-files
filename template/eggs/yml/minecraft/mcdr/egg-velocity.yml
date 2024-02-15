@@ -35,6 +35,14 @@ config:
                 "bind": "0.0.0.0:{{server.build.default.port}}",
                 "query.port": "{{server.build.default.port}}"
             }
+        },
+        "config.yml": {
+            "parser": "yaml",
+            "find": {
+                "handler": "{{env.MCDR_HANDLER}}",
+                "start_command": "{{env.MCDR_START_COMMAND}}",
+                "debug[0].all": "{{env.MCDR_DEBUG}}"
+            }
         }
     }
   startup: |-
