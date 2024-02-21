@@ -18,7 +18,7 @@
     "file_denylist": [],
     "startup": "{{OPTIONS}} java -XX:MaxRAM={{SERVER_MEMORY}}M -Xms{{MIN_MEM}}M -Xmx{{MAX_MEM}}M {{JAVA_OPTIONS}} -jar {{SERVER_JARFILE}} --nogui",
     "config": {
-        "files": "{\n    \"server/server.properties\": {\n        \"parser\": \"properties\",\n        \"find\": {\n            \"server-ip\": \"0.0.0.0\",\n            \"server-port\": \"{{server.build.default.port}}\",\n            \"query.port\": \"{{server.build.default.port}}\"\n        }\n    },\n    \"server/eula.txt\": {\n        \"parser\": \"properties\",\n        \"find\": {\n            \"eula\": \"true\"\n        }\n    }\n}",
+        "files": "{\n    \"server.properties\": {\n        \"parser\": \"properties\",\n        \"find\": {\n            \"server-ip\": \"0.0.0.0\",\n            \"server-port\": \"{{server.build.default.port}}\",\n            \"query.port\": \"{{server.build.default.port}}\"\n        }\n    },\n    \"eula.txt\": {\n        \"parser\": \"properties\",\n        \"find\": {\n            \"eula\": \"true\"\n        }\n    }\n}",
         "startup": "{\n    \"done\": \")! For help, type \"\n}",
         "logs": "{}",
         "stop": "stop"
@@ -65,7 +65,7 @@
             "name": "\u5305\u88c5\u53c2\u6570",
             "description": "\u5728 java \u547d\u4ee4\u4e4b\u524d\u4f20\u5165\u7684\u53c2\u6570\n(\u5982: XXX=true java xxx)",
             "env_variable": "OPTIONS",
-            "default_value": "",
+            "default_value": "-XX:+UnlockExperimentalVMOptions -XX:+UnlockDiagnosticVMOptions -XX:+AlwaysActAsServerClassMachine -XX:+AlwaysPreTouch -XX:+DisableExplicitGC -XX:+UseNUMA -XX:NmethodSweepActivity=1 -XX:ReservedCodeCacheSize=400M -XX:NonNMethodCodeHeapSize=12M -XX:ProfiledCodeHeapSize=194M -XX:NonProfiledCodeHeapSize=194M -XX:-DontCompileHugeMethods -XX:MaxNodeLimit=240000 -XX:NodeLimitFudgeFactor=8000 -XX:+UseVectorCmov -XX:+PerfDisableSharedMem -XX:+UseFastUnorderedTimeStamps -XX:+UseCriticalJavaThreadPriority -XX:ThreadPriorityPolicy=1 -XX:AllocatePrefetchStyle=3 -XX:+UseZGC -XX:AllocatePrefetchStyle=1 -XX:-ZProactive -Dterminal.jline=false -Dterminal.ansi=true",
             "user_viewable": true,
             "user_editable": true,
             "rules": "nullable|string",

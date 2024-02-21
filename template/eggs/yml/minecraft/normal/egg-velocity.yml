@@ -70,7 +70,7 @@ variables:
     在 java 命令之前传入的参数
     (如: XXX=true java xxx)
   env_variable: OPTIONS
-  default_value: ''
+  default_value: '-XX:+UseG1GC -XX:G1HeapRegionSize=4M -XX:+UnlockExperimentalVMOptions -XX:+ParallelRefProcEnabled -XX:+AlwaysPreTouch -XX:MaxInlineLevel=15 -Dterminal.jline=false -Dterminal.ansi=true'
   user_viewable: true
   user_editable: true
   rules: nullable|string

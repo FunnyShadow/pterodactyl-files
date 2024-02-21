@@ -65,7 +65,7 @@
             "name": "\u5305\u88c5\u53c2\u6570",
             "description": "\u5728 java \u547d\u4ee4\u4e4b\u524d\u4f20\u5165\u7684\u53c2\u6570\n(\u5982: XXX=true java xxx)",
             "env_variable": "OPTIONS",
-            "default_value": "",
+            "default_value": "-XX:+UseG1GC -XX:G1HeapRegionSize=4M -XX:+UnlockExperimentalVMOptions -XX:+ParallelRefProcEnabled -XX:+AlwaysPreTouch -XX:MaxInlineLevel=15 -Dterminal.jline=false -Dterminal.ansi=true",
             "user_viewable": true,
             "user_editable": true,
             "rules": "nullable|string",
