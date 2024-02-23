@@ -32,16 +32,6 @@
     },
     "variables": [
         {
-            "name": "\u670d\u52a1\u7aef Jar \u6587\u4ef6\u540d",
-            "description": "\u7528\u4e8e\u8fd0\u884c\u670d\u52a1\u5668\u7684\u670d\u52a1\u5668\u6838\u5fc3\u6587\u4ef6\u540d\u79f0\uff0c\u5982\u679c\u6b64\u9879\u8f93\u5165\u9519\u8bef\u5219\u53ef\u80fd\u4f1a\u5bfc\u81f4\u65e0\u6cd5\u6b63\u5e38\u542f\u52a8\u670d\u52a1\u5668",
-            "env_variable": "SERVER_JARFILE",
-            "default_value": "server.jar",
-            "user_viewable": true,
-            "user_editable": true,
-            "rules": "required|regex:/^([\\w\\d._-]+)(\\.jar)$/",
-            "field_type": "text"
-        },
-        {
             "name": "\u670d\u52a1\u7aef Minecraft \u7248\u672c",
             "description": "\u7528\u4e8e\u8fd0\u884c\u670d\u52a1\u5668\u7684 Minecraft \u7248\u672c, \u5982\u679c\u6b64\u9879\u8f93\u5165\u9519\u8bef\u5219\u53ef\u80fd\u4f1a\u5bfc\u81f4\u65e0\u6cd5\u6b63\u5e38\u542f\u52a8\u670d\u52a1\u5668",
             "env_variable": "MINECRAFT_VERSION",
