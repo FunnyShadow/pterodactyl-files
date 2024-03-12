@@ -2,28 +2,44 @@ _comment: 'DO NOT EDIT: FILE GENERATED AUTOMATICALLY BY PTERODACTYL PANEL - PTER
 meta:
   version: PTDL_v2
   update_url:
-exported_at: '2024-02-14T13:02:10+08:00'
-name: Legacy Vanilla
+exported_at: '2024-02-14T13:02:11+08:00'
+name: Bukkit
 author: noreply@trcloud.network
 description:
 features:
 docker_images:
-  Java 21 / MCDR Latest: bluefunny/pterodactyl:minecraft-runtime-debian-21-latest
-  Java 21 / MCDR 2.12: bluefunny/pterodactyl:minecraft-runtime-debian-21-2.12
-  Java 21 / MCDR 2.11: bluefunny/pterodactyl:minecraft-runtime-debian-21-2.11
-  Java 21 / MCDR 2.10: bluefunny/pterodactyl:minecraft-runtime-debian-21-2.10
-  Java 17 / MCDR Latest: bluefunny/pterodactyl:minecraft-runtime-debian-17-latest
-  Java 17 / MCDR 2.12: bluefunny/pterodactyl:minecraft-runtime-debian-17-2.12
-  Java 17 / MCDR 2.11: bluefunny/pterodactyl:minecraft-runtime-debian-17-2.11
-  Java 17 / MCDR 2.10: bluefunny/pterodactyl:minecraft-runtime-debian-17-2.10
-  Java 11 / MCDR Latest: bluefunny/pterodactyl:minecraft-runtime-debian-11-latest
-  Java 11 / MCDR 2.12: bluefunny/pterodactyl:minecraft-runtime-debian-11-2.12
-  Java 11 / MCDR 2.11: bluefunny/pterodactyl:minecraft-runtime-debian-11-2.11
-  Java 11 / MCDR 2.10: bluefunny/pterodactyl:minecraft-runtime-debian-11-2.10
-  Java 8 / MCDR Latest: bluefunny/pterodactyl:minecraft-runtime-debian-8-latest
-  Java 8 / MCDR 2.12: bluefunny/pterodactyl:minecraft-runtime-debian-8-2.12
-  Java 8 / MCDR 2.11: bluefunny/pterodactyl:minecraft-runtime-debian-8-2.11
-  Java 8 / MCDR 2.10: bluefunny/pterodactyl:minecraft-runtime-debian-8-2.10
+  Debian | Java 21 | MCDR Latest: bluefunny/pterodactyl:minecraft-mcdr-debian-21-latest
+  Debian | Java 21 | MCDR 2.12: bluefunny/pterodactyl:minecraft-mcdr-debian-21-2.12
+  Debian | Java 21 | MCDR 2.11: bluefunny/pterodactyl:minecraft-mcdr-debian-21-2.11
+  Debian | Java 21 | MCDR 2.10: bluefunny/pterodactyl:minecraft-mcdr-debian-21-2.10
+  Debian | Java 17 | MCDR Latest: bluefunny/pterodactyl:minecraft-mcdr-debian-17-latest
+  Debian | Java 17 | MCDR 2.12: bluefunny/pterodactyl:minecraft-mcdr-debian-17-2.12
+  Debian | Java 17 | MCDR 2.11: bluefunny/pterodactyl:minecraft-mcdr-debian-17-2.11
+  Debian | Java 17 | MCDR 2.10: bluefunny/pterodactyl:minecraft-mcdr-debian-17-2.10
+  Debian | Java 11 | MCDR Latest: bluefunny/pterodactyl:minecraft-mcdr-debian-11-latest
+  Debian | Java 11 | MCDR 2.12: bluefunny/pterodactyl:minecraft-mcdr-debian-11-2.12
+  Debian | Java 11 | MCDR 2.11: bluefunny/pterodactyl:minecraft-mcdr-debian-11-2.11
+  Debian | Java 11 | MCDR 2.10: bluefunny/pterodactyl:minecraft-mcdr-debian-11-2.10
+  Debian | Java 8 | MCDR Latest: bluefunny/pterodactyl:minecraft-mcdr-debian-8-latest
+  Debian | Java 8 | MCDR 2.12: bluefunny/pterodactyl:minecraft-mcdr-debian-8-2.12
+  Debian | Java 8 | MCDR 2.11: bluefunny/pterodactyl:minecraft-mcdr-debian-8-2.11
+  Debian | Java 8 | MCDR 2.10: bluefunny/pterodactyl:minecraft-mcdr-debian-8-2.10
+  CentOS | Java 21 | MCDR Latest: bluefunny/pterodactyl:minecraft-mcdr-centOS-21-latest
+  CentOS | Java 21 | MCDR 2.12: bluefunny/pterodactyl:minecraft-mcdr-centOS-21-2.12
+  CentOS | Java 21 | MCDR 2.11: bluefunny/pterodactyl:minecraft-mcdr-centOS-21-2.11
+  CentOS | Java 21 | MCDR 2.10: bluefunny/pterodactyl:minecraft-mcdr-centOS-21-2.10
+  CentOS | Java 17 | MCDR Latest: bluefunny/pterodactyl:minecraft-mcdr-centOS-17-latest
+  CentOS | Java 17 | MCDR 2.12: bluefunny/pterodactyl:minecraft-mcdr-centOS-17-2.12
+  CentOS | Java 17 | MCDR 2.11: bluefunny/pterodactyl:minecraft-mcdr-centOS-17-2.11
+  CentOS | Java 17 | MCDR 2.10: bluefunny/pterodactyl:minecraft-mcdr-centOS-17-2.10
+  CentOS | Java 11 | MCDR Latest: bluefunny/pterodactyl:minecraft-mcdr-centOS-11-latest
+  CentOS | Java 11 | MCDR 2.12: bluefunny/pterodactyl:minecraft-mcdr-centOS-11-2.12
+  CentOS | Java 11 | MCDR 2.11: bluefunny/pterodactyl:minecraft-mcdr-centOS-11-2.11
+  CentOS | Java 11 | MCDR 2.10: bluefunny/pterodactyl:minecraft-mcdr-centOS-11-2.10
+  CentOS | Java 8 | MCDR Latest: bluefunny/pterodactyl:minecraft-mcdr-centOS-8-latest
+  CentOS | Java 8 | MCDR 2.12: bluefunny/pterodactyl:minecraft-mcdr-centOS-8-2.12
+  CentOS | Java 8 | MCDR 2.11: bluefunny/pterodactyl:minecraft-mcdr-centOS-8-2.11
+  CentOS | Java 8 | MCDR 2.10: bluefunny/pterodactyl:minecraft-mcdr-centOS-8-2.10
 file_denylist: []
 startup: '{{OPTIONS}} python3 -m mcdreforged'
 config:
@@ -48,7 +64,6 @@ config:
             "find": {
                 "handler": "{{env.MCDR_HANDLER}}",
                 "start_command": "{{env.MCDR_START_COMMAND}}",
-                "debug.all": "{{env.MCDR_DEBUG}}"
             }
         }
     }
@@ -116,9 +131,7 @@ variables:
   rules: nullable|string
   field_type: text
 - name: MCDR 服务器启动指令
-  description: |-
-    MCDR 配置文件中的 start_command 选项的值
-    !!! 请勿修改 config.yml 中 start_command 选项的值，除非你知道你在干什么 !!!
+  description: MCDR 配置文件中的 start_command 选项的值
   env_variable: MCDR_START_COMMAND
   default_value: java -Xms${MIN_MEM}M -Xmx${MAX_MEM}M ${JAVA_OPTIONS} -jar ${SERVER_JARFILE}
   user_viewable: true
@@ -126,22 +139,10 @@ variables:
   rules: required
   field_type: text
 - name: MCDR 服务端处理器
-  description: |-
-    MCDR 配置文件中的 handler 选项的值
-    !!! 请勿修改 config.yml 中 handler 选项的值, 除非你知道你在干什么 !!!
+  description: MCDR 配置文件中的 handler 选项的值
   env_variable: MCDR_HANDLER
-  default_value: beta18_handler
+  default_value: bukkit_handler
   user_viewable: true
   user_editable: false
   rules: required|regex:/^[a-zA-Z0-9_]+$/
-  field_type: text
-- name: MCDR 调试模式
-  description: |-
-    启用 MCDR 的调试模式
-    开启后，将会有大量的 DEBUG 输出，可能会导致服务器卡顿以及异常的硬盘占用，请慎重选择
-  env_variable: MCDR_DEBUG
-  default_value: "0"
-  user_viewable: true
-  user_editable: true
-  rules: required|bool|in:0,1
   field_type: text
