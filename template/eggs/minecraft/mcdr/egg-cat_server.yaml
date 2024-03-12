@@ -41,7 +41,7 @@ docker_images:
   CentOS | Java 8 | MCDR 2.11: bluefunny/pterodactyl:minecraft-mcdr-centOS-8-2.11
   CentOS | Java 8 | MCDR 2.10: bluefunny/pterodactyl:minecraft-mcdr-centOS-8-2.10
 file_denylist: []
-startup: '{{OPTIONS}} python3 -m mcdreforged'
+startup: '{{OPTIONS}} python3.11 -m mcdreforged'
 config:
   files: |-
     {
