@@ -46,7 +46,7 @@
     "file_denylist": [],
     "startup": "{{OPTIONS}} python3 -m mcdreforged",
     "config": {
-        "files": "{\n    \"server/server.properties\": {\n        \"parser\": \"properties\",\n        \"find\": {\n            \"server-ip\": \"0.0.0.0\",\n            \"server-port\": \"{{server.build.default.port}}\",\n            \"query.port\": \"{{server.build.default.port}}\"\n        }\n    },\n    \"config.yml\": {\n        \"parser\": \"yaml\",\n        \"find\": {\n            \"handler\": \"{{env.MCDR_HANDLER}}\",\n            \"start_command\": \"{{env.MCDR_START_COMMAND}}\",\n        }\n    }\n}",
+        "files": "{\n    \"server/server.properties\": {\n        \"parser\": \"properties\",\n        \"find\": {\n            \"server-ip\": \"0.0.0.0\",\n            \"server-port\": \"{{server.build.default.port}}\",\n            \"query.port\": \"{{server.build.default.port}}\"\n        }\n    },\n    \"config.yml\": {\n        \"parser\": \"yaml\",\n        \"find\": {\n            \"handler\": \"{{env.MCDR_HANDLER}}\",\n            \"start_command\": \"{{env.MCDR_START_COMMAND}}\"\n        }\n    }\n}",
         "startup": "{\n    \"done\": \"Listening on \"\n}",
         "logs": "{}",
         "stop": "end"

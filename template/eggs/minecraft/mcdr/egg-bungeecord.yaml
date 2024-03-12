@@ -57,7 +57,7 @@ config:
             "parser": "yaml",
             "find": {
                 "handler": "{{env.MCDR_HANDLER}}",
-                "start_command": "{{env.MCDR_START_COMMAND}}",
+                "start_command": "{{env.MCDR_START_COMMAND}}"
             }
         }
     }
