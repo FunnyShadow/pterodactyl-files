@@ -1,0 +1,36 @@
+ARG SYSTEM=debian
+ARG VERSION=bookworm
+ARG PYTHON_VERSION=3.9
+FROM ${SYSTEM}:${VERSION}
+
+RUN \
+    sed \
+    -i.bak \
+    -e 's/deb.debian.org/mirrors.cernet.edu.cn/g' \
+    /etc/apt/sources.list.d/debian.sources; \
+    apt-get update -y; \
+    apt-get install -y curl ca-certificates openssl git tar sqlite3 fontconfig tzdata iproute2 gettext-base wget build-essential libncursesw5-dev libssl-dev libsqlite3-dev tk-dev libgdbm-dev libc6-dev libbz2-dev libffi-dev zlib1g-dev; \
+    cd /tmp; \
+    wget https://www.python.org/ftp/python/3.9.18/Python-3.9.18.tgz; \
+    tar -xzvf Python-3.9.18.tgz; \
+    cd Python-3.9.18; \
+    ./configure --enable-optimizations; \
+    make -j 8; \
+    make altinstall;
+
+RUN \
+    cd /tmp; \
+    apt-get remove -y build-essential libncursesw5-dev libssl-dev libsqlite3-dev tk-dev libgdbm-dev libc6-dev libbz2-dev libffi-dev zlib1g-dev; \
+    apt-get autoremove -y; \
+    apt-get clean; \
+    pip3 cache purge; \
+    rm -rf /tmp/Python-3.9.18; \
+    rm -rf /tmp/Python-3.9.18.tgz;
+
+RUN useradd -d /home/container -m container;
+USER container
+ENV USER=container HOME=/home/container
+
+WORKDIR /home/container
+COPY ./entrypoint.sh /
+CMD ["/bin/bash", "/entrypoint.sh"]

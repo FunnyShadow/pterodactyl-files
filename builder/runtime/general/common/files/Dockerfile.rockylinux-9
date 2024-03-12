@@ -1,0 +1,25 @@
+ARG SYSTEM=rockylinux
+ARG VERSION=9
+FROM ${SYSTEM}:${VERSION}
+
+RUN \
+    sed \
+    -i.bak \
+    -e 's|^mirrorlist=|#mirrorlist=|g' \
+    -e 's|^#baseurl=http://dl.rockylinux.org/$contentdir|baseurl=https://mirrors.cernet.edu.cn/rocky|g' \
+    /etc/yum.repos.d/rocky-extras.repo \
+    /etc/yum.repos.d/rocky.repo; \
+    dnf makecache; \
+    dnf install -y curl ca-certificates openssl git tar sqlite3 fontconfig tzdata iproute2 gettext-base wget;
+
+RUN \
+    dnf autoremove -y; \
+    dnf clean all;
+
+RUN useradd -d /home/container -m container;
+USER container
+ENV USER=container HOME=/home/container
+
+WORKDIR /home/container
+COPY ./entrypoint.sh /
+CMD ["/bin/bash", "/entrypoint.sh"]

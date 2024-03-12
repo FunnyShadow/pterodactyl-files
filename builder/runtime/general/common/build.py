@@ -33,6 +33,7 @@ def cmd_build(args: argparse.Namespace):
 			'-t', ctx.tag,
 			'--build-arg', f'SYSTEM={ctx.system}',
 			'--build-arg', f'VERSION={ctx.version}',
+			'-f', f'./files/Dockerfile.{ctx.system}-{ctx.version}',
 		]
 		if args.http_proxy is not None:
 			cmd.extend([

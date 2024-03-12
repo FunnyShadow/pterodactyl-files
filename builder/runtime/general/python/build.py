@@ -13,16 +13,16 @@ class Context(NamedTuple):
 
 
 def iterate_all() -> Iterator[Context]:
-	for system in ['debian', 'centos']:
+	for system in ['debian', 'rockylinux']:
 		if system == 'debian':
 			for version in ['buster', 'bullseye', 'bookworm']:
 				for python in ['3.8', '3.9', '3.10', '3.11', '3.12']:
-					tag = f'bluefunny/pterodactyl:general-common-{system}-{version}-python{python}'
+					tag = f'bluefunny/pterodactyl:general-python-{system}-{version}-{python}'
 					yield Context(system, version, str(python), tag)
 		if system == 'rockylinux':
 			for version in ['8', '9']:
 				for python in ['3.8', '3.9', '3.10', '3.11', '3.12']:
-					tag = f'bluefunny/pterodactyl:general-common-{system}-{version}-python{python}'
+					tag = f'bluefunny/pterodactyl:general-python-{system}-{version}-{python}'
 					yield Context(system, str(version), str(python), tag)
 		
 
@@ -38,6 +38,7 @@ def cmd_build(args: argparse.Namespace):
 			'--build-arg', f'SYSTEM={ctx.system}',
 			'--build-arg', f'VERSION={ctx.version}',
 			'--build-arg', f'PYTHON_VERSION={ctx.python}',
+			'-f', f'./files/{ctx.python}/Dockerfile.{ctx.system}-{ctx.version}',
 		]
 		if args.http_proxy is not None:
 			cmd.extend([

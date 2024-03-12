@@ -16,7 +16,7 @@ def iterate_all() -> Iterator[Context]:
 	for system in ['debian', 'centos']:
 		for java in [7, 8, 11, 17, 21]:
 			for mcdr in ['latest', '2.12', '2.11', '2.10']:
-				tag = f'bluefunny/pterodactyl:minecraft-mcdr-{system}-{java}-{mcdr}'
+				tag = f'bluefunny/pterodactyl:minecraft-mcdr-{system}-{java}-mcdr{mcdr}'
 				yield Context(system, str(java), mcdr, tag)
 
 
@@ -35,6 +35,7 @@ def cmd_build(args: argparse.Namespace):
 			'--build-arg', f'SYSTEM={ctx.system}',
 			'--build-arg', f'JAVA_VERSION={ctx.java}',
 			'--build-arg', f'MCDR_REQUIREMENT={mcdr_req}',
+			'-f', f'./files/Dockerfile.{ctx.system}',
 		]
 		if args.http_proxy is not None:
 			cmd.extend([

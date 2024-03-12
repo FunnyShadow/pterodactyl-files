@@ -1,0 +1,23 @@
+ARG SYSTEM=debian
+ARG VERSION=bookworm
+FROM ${SYSTEM}:${VERSION}
+
+RUN \
+    sed \
+    -i.bak \
+    -e 's/deb.debian.org/mirrors.cernet.edu.cn/g' \
+    /etc/apt/sources.list.d/debian.sources; \
+    apt-get update -y; \
+    apt-get install -y curl ca-certificates openssl git tar sqlite3 fontconfig tzdata iproute2 gettext-base wget;
+
+RUN \
+    apt-get autoremove -y; \
+    apt-get clean;
+
+RUN useradd -d /home/container -m container;
+USER container
+ENV USER=container HOME=/home/container
+
+WORKDIR /home/container
+COPY ./entrypoint.sh /
+CMD ["/bin/bash", "/entrypoint.sh"]
