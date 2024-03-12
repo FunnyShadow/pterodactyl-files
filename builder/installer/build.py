@@ -6,28 +6,33 @@ import sys
 from typing import Iterator, NamedTuple
 
 class Context(NamedTuple):
+	version: str
 	system: str
-	java: str
 	tag: str
 
 
 def iterate_all() -> Iterator[Context]:
-	for system in ['debian']:
-		for java in [7, 8, 11, 17, 21]:
-			tag = f'bluefunny/pterodactyl:minecraft-runtime-{system}-{java}'
-			yield Context(system, str(java), tag)
+	for system in ['debian', 'rockylinux']:
+		if system == 'debian':
+			for version in ['buster', 'bullseye', 'bookworm']:
+				tag = f'bluefunny/pterodactyl:general-common-{system}-{version}'
+				yield Context(system, version, tag)
+		if system == 'rockylinux':
+			for version in ['8', '9']:
+				tag = f'bluefunny/pterodactyl:general-common-{system}-{version}'
+				yield Context(system, str(version), tag)
 
 
 def cmd_build(args: argparse.Namespace):
 	for ctx in iterate_all():
 
-		print(f'======== System: {ctx.system}, Java: {ctx.java}, Tag: {ctx.tag!r} ========')
+		print(f'======== System: {ctx.system}, Version: {ctx.version}, Tag: {ctx.tag!r} ========')
 
 		cmd = [
 			'docker', 'build', os.getcwd(),
 			'-t', ctx.tag,
 			'--build-arg', f'SYSTEM={ctx.system}',
-			'--build-arg', f'JAVA_VERSION={ctx.java}',
+			'--build-arg', f'VERSION={ctx.version}',
 		]
 		if args.http_proxy is not None:
 			cmd.extend([

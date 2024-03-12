@@ -8,33 +8,26 @@ from typing import Iterator, NamedTuple
 class Context(NamedTuple):
 	system: str
 	java: str
-	mcdr: str
 	tag: str
 
 
 def iterate_all() -> Iterator[Context]:
-	for system in ['debian']:
+	for system in ['debian', 'centos']:
 		for java in [7, 8, 11, 17, 21]:
-			for mcdr in ['latest', '2.12', '2.11', '2.10']:
-				tag = f'bluefunny/pterodactyl:minecraft-runtime-{system}-{java}-{mcdr}'
-				yield Context(system, str(java), mcdr, tag)
+			tag = f'bluefunny/pterodactyl:minecraft-normal-{system}-{java}'
+			yield Context(system, str(java), tag)
 
 
 def cmd_build(args: argparse.Namespace):
 	for ctx in iterate_all():
-		if ctx.mcdr == 'latest':
-			mcdr_req = 'mcdreforged'
-		else:
-			mcdr_req = f'mcdreforged~={ctx.mcdr}'
 
-		print(f'======== System: {ctx.system}, Java: {ctx.java}, MCDR: {ctx.mcdr}, Tag: {ctx.tag!r} ========')
+		print(f'======== System: {ctx.system}, Java: {ctx.java}, MCDR: None, Tag: {ctx.tag!r} ========')
 
 		cmd = [
 			'docker', 'build', os.getcwd(),
 			'-t', ctx.tag,
 			'--build-arg', f'SYSTEM={ctx.system}',
 			'--build-arg', f'JAVA_VERSION={ctx.java}',
-			'--build-arg', f'MCDR_REQUIREMENT={mcdr_req}',
 		]
 		if args.http_proxy is not None:
 			cmd.extend([
