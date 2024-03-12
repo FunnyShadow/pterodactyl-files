@@ -1,6 +1,4 @@
 ARG SYSTEM=debian
-ARG JAVA_VERSION
-ARG MCDR_REQUIREMENT
 FROM azul/zulu-openjdk-${SYSTEM}:${JAVA_VERSION}-latest
 
 RUN \

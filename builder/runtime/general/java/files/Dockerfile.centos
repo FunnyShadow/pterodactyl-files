@@ -1,5 +1,4 @@
 ARG SYSTEM=centos
-ARG JAVA_VERSION
 FROM azul/zulu-openjdk-${SYSTEM}:${JAVA_VERSION}-latest
 
 RUN \
