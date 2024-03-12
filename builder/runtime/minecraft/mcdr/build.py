@@ -16,7 +16,7 @@ def iterate_all() -> Iterator[Context]:
 	for system in ['debian', 'centos']:
 		for java in [7, 8, 11, 17, 21]:
 			for mcdr in ['latest', '2.12', '2.11', '2.10']:
-				tag = f'bluefunny/pterodactyl:minecraft-mcdr-{system}-{java}-mcdr{mcdr}'
+				tag = f'bluefunny/pterodactyl:minecraft-mcdr-{system}-{java}-{mcdr}'
 				yield Context(system, str(java), mcdr, tag)
 
 
