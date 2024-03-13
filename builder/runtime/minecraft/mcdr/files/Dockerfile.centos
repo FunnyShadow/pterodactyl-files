@@ -9,8 +9,8 @@ RUN \
     -e 's|^mirrorlist=|#mirrorlist=|g' \
     -e 's|^#baseurl=http://mirror.centos.org/centos|baseurl=https://mirrors.cernet.edu.cn/centos|g' \ 
     /etc/yum.repos.d/CentOS-*.repo; \
-    yum update -y; \
-    yum install -y --allowerasing curl ca-certificates openssl git tar sqlite fontconfig tzdata iproute gettext wget make gcc gcc-c++ ncurses-devel openssl-devel sqlite-devel tk-devel gdbm-devel glibc-devel bzip2-devel libffi-devel zlib-devel; \
+    dnf update -y; \
+    dnf install -y --allowerasing curl ca-certificates openssl git tar sqlite fontconfig tzdata iproute gettext wget make gcc gcc-c++ ncurses-devel openssl-devel sqlite-devel tk-devel gdbm-devel glibc-devel bzip2-devel libffi-devel zlib-devel; \
     cd /tmp; \
     wget https://www.python.org/ftp/python/3.11.8/Python-3.11.8.tgz; \
     tar -xzvf Python-3.11.8.tgz; \
@@ -30,9 +30,9 @@ RUN \
     
 RUN \
     cd /tmp; \
-    yum remove -y make gcc gcc-c++ ncurses-devel openssl-devel sqlite-devel tk-devel gdbm-devel glibc-devel bzip2-devel libffi-devel zlib-devel; \
-    yum autoremove -y; \
-    yum clean all; \
+    dnf remove -y make gcc gcc-c++ ncurses-devel openssl-devel sqlite-devel tk-devel gdbm-devel glibc-devel bzip2-devel libffi-devel zlib-devel; \
+    dnf autoremove -y; \
+    dnf clean all; \
     pip3 cache purge; \
     rm -rf /requirements.txt; \
     rm -rf /tmp/Python-3.11.8; \
