@@ -9,12 +9,12 @@ RUN \
     -e 's|^mirrorlist=|#mirrorlist=|g' \
     -e 's|^#baseurl=http://mirror.centos.org/centos|baseurl=https://mirrors.cernet.edu.cn/centos|g' \ 
     /etc/yum.repos.d/CentOS-*.repo; \
-    dnf update -y; \
-    dnf install -y --allowerasing curl ca-certificates openssl git tar sqlite3 fontconfig tzdata iproute2 gettext-base wget;
+    yum update -y; \
+    yum install -y --allowerasing curl ca-certificates openssl git tar sqlite3 fontconfig tzdata iproute2 gettext-base wget;
 
 RUN \
-    dnf autoremove -y; \
-    dnf clean all;
+    yum autoremove -y; \
+    yum clean all;
 
 RUN useradd -d /home/container -m container;
 USER container
