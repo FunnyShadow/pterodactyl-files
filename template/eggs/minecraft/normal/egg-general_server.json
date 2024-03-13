@@ -10,10 +10,14 @@
     "description": null,
     "features": null,
     "docker_images": {
-        "Java 21": "azul/zulu-openjdk-debian:21-latest",
-        "Java 17": "azul/zulu-openjdk-debian:17-latest",
-        "Java 11": "azul/zulu-openjdk-debian:11-latest",
-        "Java 8": "azul/zulu-openjdk-debian:8-latest"
+        "Debian | Java 21": "bluefunny/pterodactyl:minecraft-normal-debian-21",
+        "Debian | Java 17": "bluefunny/pterodactyl:minecraft-normal-debian-17",
+        "Debian | Java 11": "bluefunny/pterodactyl:minecraft-normal-debian-11",
+        "Debian | Java 8": "bluefunny/pterodactyl:minecraft-normal-debian-8",
+        "CentOS | Java 21": "bluefunny/pterodactyl:minecraft-normal-centos-21",
+        "CentOS | Java 17": "bluefunny/pterodactyl:minecraft-normal-centos-17",
+        "CentOS | Java 11": "bluefunny/pterodactyl:minecraft-normal-centos-11",
+        "CentOS | Java 8": "bluefunny/pterodactyl:minecraft-normal-centos-8"
     },
     "file_denylist": [],
     "startup": "{{OPTIONS}} java -XX:MaxRAM={{SERVER_MEMORY}}M -Xms{{MIN_MEM}}M -Xmx{{MAX_MEM}}M {{JAVA_OPTIONS}} -jar {{SERVER_JARFILE}} --nogui",
