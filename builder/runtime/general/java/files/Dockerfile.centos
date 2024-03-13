@@ -10,7 +10,7 @@ RUN \
     -e 's|^#baseurl=http://mirror.centos.org/centos|baseurl=https://mirrors.cernet.edu.cn/centos|g' \ 
     /etc/yum.repos.d/CentOS-*.repo; \
     yum update -y; \
-    yum install -y curl ca-certificates openssl git tar sqlite3 fontconfig tzdata iproute2 gettext-base wget;
+    yum install -y --allowerasing curl ca-certificates openssl git tar sqlite3 fontconfig tzdata iproute2 gettext-base wget;
 
 RUN \
     yum autoremove -y; \

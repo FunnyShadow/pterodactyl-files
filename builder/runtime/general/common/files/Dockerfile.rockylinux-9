@@ -11,7 +11,7 @@ RUN \
     /etc/yum.repos.d/rocky-extras.repo \
     /etc/yum.repos.d/rocky.repo; \
     dnf makecache; \
-    dnf install -y curl ca-certificates openssl git tar sqlite fontconfig tzdata iproute gettext wget;
+    dnf install -y --allowerasing curl ca-certificates openssl git tar sqlite fontconfig tzdata iproute gettext wget;
 
 RUN \
     dnf autoremove -y; \
