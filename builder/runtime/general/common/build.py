@@ -6,8 +6,8 @@ import sys
 from typing import Iterator, NamedTuple
 
 class Context(NamedTuple):
-	version: str
 	system: str
+	version: str
 	tag: str
 
 
