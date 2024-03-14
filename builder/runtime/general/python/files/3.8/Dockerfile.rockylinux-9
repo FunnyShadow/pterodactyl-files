@@ -11,7 +11,7 @@ RUN \
     /etc/yum.repos.d/rocky-extras.repo \
     /etc/yum.repos.d/rocky.repo; \
     dnf makecache; \
-    dnf install -y --allowerasing curl ca-certificates openssl git tar sqlite fontconfig tzdata iproute gettext wget make gcc gcc-c++ ncurses-devel openssl-devel sqlite-devel tk-devel gdbm-devel glibc-devel bzip2-devel libffi-devel zlib-devel; \
+    dnf install -y --allowerasing find curl ca-certificates openssl git tar sqlite fontconfig tzdata iproute gettext wget make gcc gcc-c++ ncurses-devel openssl-devel sqlite-devel tk-devel gdbm-devel glibc-devel bzip2-devel libffi-devel zlib-devel; \
     cd /tmp; \
     wget https://www.python.org/ftp/python/3.8.18/Python-3.8.18.tgz; \
     tar -xzvf Python-3.8.18.tgz; \
@@ -22,7 +22,7 @@ RUN \
     
 RUN \
     cd /tmp; \
-    dnf remove -y make gcc gcc-c++ ncurses-devel openssl-devel sqlite-devel tk-devel gdbm-devel glibc-devel bzip2-devel libffi-devel zlib-devel; \
+    dnf remove -y find make gcc gcc-c++ ncurses-devel openssl-devel sqlite-devel tk-devel gdbm-devel glibc-devel bzip2-devel libffi-devel zlib-devel; \
     dnf autoremove -y; \
     dnf clean all; \
     pip3 cache purge; \
