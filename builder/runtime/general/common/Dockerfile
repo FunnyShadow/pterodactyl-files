@@ -28,7 +28,6 @@ ARG SYSTEM
 ARG VERSION
 RUN \
     if [ "${SYSTEM}" == "rockylinux" ]; then \
-        dnf config-manager --set-enabled crb; \
         if [ "${VERSION}" == "8" ]; then \
             sed \
             -i.bak \
@@ -38,6 +37,8 @@ RUN \
             /etc/yum.repos.d/Rocky-BaseOS.repo \
             /etc/yum.repos.d/Rocky-Extras.repo \
             /etc/yum.repos.d/Rocky-PowerTools.repo; \
+            dnf install 'dnf-command(config-manager)'; \
+            dnf config-manager --set-enabled crb; \
         else \
             sed \
             -i.bak \
@@ -45,6 +46,7 @@ RUN \
             -e 's|^#baseurl=http://dl.rockylinux.org/$contentdir|baseurl=https://mirrors.cernet.edu.cn/rocky|g' \
             /etc/yum.repos.d/rocky-extras.repo \
             /etc/yum.repos.d/rocky.repo; \
+            dnf config-manager --set-enabled crb; \
         fi; \
         dnf makecache; \
         dnf install -y --allowerasing curl ca-certificates openssl git tar sqlite fontconfig tzdata iproute gettext wget; \
