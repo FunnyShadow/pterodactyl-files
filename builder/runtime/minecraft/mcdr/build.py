@@ -35,7 +35,6 @@ def cmd_build(args: argparse.Namespace):
 			'--build-arg', f'SYSTEM={ctx.system}',
 			'--build-arg', f'JAVA_VERSION={ctx.java}',
 			'--build-arg', f'MCDR_REQUIREMENT={mcdr_req}',
-			'-f', f'./files/Dockerfile.{ctx.system}',
 		]
 		if args.http_proxy is not None:
 			cmd.extend([
