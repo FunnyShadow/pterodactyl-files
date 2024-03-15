@@ -18,7 +18,7 @@ RUN \
             -e 's/deb.debian.org/mirrors.ustc.edu.cn/g' \
             -e 's|security.debian.org/debian-security|mirrors.ustc.edu.cn/debian-security|g' \
             /etc/apt/sources.list; \
-        fi \
+        fi; \
         apt-get update -y; \
         apt-get install -y -f curl ca-certificates openssl git tar sqlite3 fontconfig tzdata iproute2 gettext-base wget; \
         apt-get clean; \
@@ -45,7 +45,7 @@ RUN \
             -e 's|^#baseurl=http://dl.rockylinux.org/$contentdir|baseurl=https://mirrors.cernet.edu.cn/rocky|g' \
             /etc/yum.repos.d/rocky-extras.repo \
             /etc/yum.repos.d/rocky.repo; \
-        fi \
+        fi; \
         dnf makecache; \
         dnf install -y --allowerasing curl ca-certificates openssl git tar sqlite fontconfig tzdata iproute gettext wget; \
         dnf clean all; \
