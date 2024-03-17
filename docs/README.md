@@ -1,5 +1,9 @@
 # XiaoNetwork Project Pterodactyl Files
 
+**Due to the change of the server panel, this repository has been deprecated and archived to prevent future reactivation**
+
+---
+
 ### Internal Repository, Do Not Distribute, Violators Will Be Prosecuted
 
 ---
