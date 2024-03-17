@@ -65,7 +65,7 @@ config:
         "done": "]: Done ("
     }
   logs: '{}'
-  stop: exit
+  stop: end
 scripts:
   installation:
     script: |-

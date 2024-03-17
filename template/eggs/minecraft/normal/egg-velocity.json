@@ -25,7 +25,7 @@
         "files": "{\n    \"server/velocity.toml\": {\n        \"parser\": \"toml\",\n        \"find\": {\n            \"bind\": \"0.0.0.0:{{server.build.default.port}}\",\n            \"query.port\": \"{{server.build.default.port}}\"\n        }\n    }\n}",
         "startup": "{\n    \"done\": \"]: Done (\"\n}",
         "logs": "{}",
-        "stop": "exit"
+        "stop": "end"
     },
     "scripts": {
         "installation": {
