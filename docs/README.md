@@ -1,19 +1,22 @@
 # FoxRealms Pterodactyl Files
 
-### Internal Repository, Do Not Distribute, Violators Will Be Prosecuted
+**Internal Repository, Do Not Distribute, Violators Will Be Prosecuted**
 
----
+## Introduction
 
-This repository is used to store things related to the Pterodactyl panel.
+This is a place to store things related to the Pterodactyl panel.
 
-- The `builder` directory contains tools for image building. The `general` directory contains the general image, and the `minecraft` directory contains the Minecraft server image.
-- The `template` directory contains backup configurations for the Pterodactyl panel, both in yml and json formats. Conversion between the two formats can be done using the `tool.py` located in this directory.
+- The `template` folder contains backup configuration files for the Pterodactyl panel, both in YAML and JSON formats. Conversion between the two can be done using the `run.sh` script located in this directory.
+- The `docker` folder contains tools for building images.
+> It is divided into two parts, `installer` and `runtime`, which are described as follows:
+> - `installer` is used to automatically download and install the server.
+> - `runtime` is the environment required to run the server (including MCDR and related dependencies).
 
-**Please note: Only the json version of the backup configuration files can be imported. Please do not directly import the yaml version.**
+**Please note: Only JSON versions of the configuration files can be imported. Please do not import the YAML versions directly.**
 
 ## Acknowledgements
 
-This repository heavily references the personal repository of Fallen_breath: https://github.com/Fallen-Breath/pterodactyl-eggs
+This repository contains a lot of code references from Fallen_breath's personal repository: https://github.com/Fallen-Breath/pterodactyl-eggs
 
 ## Copyright
 
