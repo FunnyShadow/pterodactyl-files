@@ -1,6 +1,4 @@
-# XiaoNetwork Project Pterodactyl Files
-
-**由于服务器面板已更换, 此仓库已废弃, 为防止之后重新启用, 故作存档**
+# FoxRealms Pterodactyl Files
 
 ---
 
@@ -13,7 +11,7 @@
 - `builder` 内为镜像构建相关工具, 其中, `general` 为通用镜像, `minecraft` 为 Minecraft 开服镜像
 - `template` 内为 Pterodactyl 面板的预设配置备份, 有 yml 版本也有 json 版本, 通过位于该目录中的 `tool.py` 可进行互转
 
-**请注意: 只有 json 版本的预设配置文件才可以导入, 请不要直接导入 yml 版本**
+**请注意: 只有 json 版本的预设配置文件才可以导入, 请不要直接导入 yaml 版本**
 
 ## 致谢
 
@@ -21,4 +19,4 @@
 
 ## 版权
 
-本仓库属于 XiaoNetwork Project 内部仓库, 保留所有权利
+本仓库属于 FoxRealms 内部仓库, 保留所有权利

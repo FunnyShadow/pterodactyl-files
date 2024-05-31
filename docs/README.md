@@ -1,6 +1,4 @@
-# XiaoNetwork Project Pterodactyl Files
-
-**Due to the change of the server panel, this repository has been deprecated and archived to prevent future reactivation**
+# FoxRealms Pterodactyl Files
 
 ---
 
@@ -8,17 +6,17 @@
 
 ---
 
-This is used to store some things related to the Pterodactyl panel.
+This repository is used to store things related to the Pterodactyl panel.
 
-- The `builder` directory contains tools related to image building. Among them, `general` is a general image, and `minecraft` is a Minecraft server image.
+- The `builder` directory contains tools for image building. The `general` directory contains the general image, and the `minecraft` directory contains the Minecraft server image.
 - The `template` directory contains backup configurations for the Pterodactyl panel, both in yml and json formats. Conversion between the two formats can be done using the `tool.py` located in this directory.
 
-**Please note: Only json versions of the preset configuration files can be imported. Please do not import yml versions directly.**
+**Please note: Only the json version of the backup configuration files can be imported. Please do not directly import the yaml version.**
 
 ## Acknowledgements
 
-This repository refers to a large amount of code from Fallen_breath's personal repository: https://github.com/Fallen-Breath/pterodactyl-eggs
+This repository heavily references the personal repository of Fallen_breath: https://github.com/Fallen-Breath/pterodactyl-eggs
 
 ## Copyright
 
-This repository belongs to the XiaoNetwork Project internal repository and all rights are reserved.
+This repository belongs to FoxRealms and all rights are reserved.
