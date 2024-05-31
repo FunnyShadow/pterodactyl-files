@@ -1,7 +1,5 @@
 # FoxRealms Pterodactyl Files
 
----
-
 ### 内部仓库, 请勿向外传播, 违者必究其法律责任
 
 ---

@@ -1,7 +1,5 @@
 # FoxRealms Pterodactyl Files
 
----
-
 ### Internal Repository, Do Not Distribute, Violators Will Be Prosecuted
 
 ---
