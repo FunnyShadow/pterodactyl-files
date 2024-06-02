@@ -5,7 +5,7 @@
         "update_url": null
     },
     "exported_at": "2024-06-02T11:09:31+08:00",
-    "name": "Proxy (MCDR) | Waterfall",
+    "name": "Other (MCDR) | Purpur",
     "author": "noreply@foxrealms.online",
     "description": null,
     "features": null,
@@ -30,10 +30,10 @@
     "file_denylist": [],
     "startup": "python3.12 -m mcdreforged",
     "config": {
-        "files": "{\n    \"server/config.yml\": {\n        \"parser\": \"yaml\",\n        \"find\": {\n            \"listeners[0].query_port\": \"{{server.build.default.port}}\",\n            \"listeners[0].host\": \"0.0.0.0:{{server.build.default.port}}\",\n            \"servers.*.address\": {\n                \"regex:^(127\\\\.0\\\\.0\\\\.1|localhost)(:\\\\d{1,5})?$\": \"{{config.docker.interface}}$2\"\n            }\n        }\n    },\n    \"config.yml\": {\n        \"parser\": \"yaml\",\n        \"find\": {\n            \"handler\": \"{{env.MCDR_HANDLER}}\",\n            \"start_command\": \"{{env.MCDR_START_COMMAND}}\"\n        }\n    }\n}",
-        "startup": "{\n    \"done\": \"Listening on \"\n}",
+        "files": "{\n    \"server/server.properties\": {\n        \"parser\": \"properties\",\n        \"find\": {\n            \"server-ip\": \"0.0.0.0\",\n            \"server-port\": \"{{server.build.default.port}}\",\n            \"query.port\": \"{{server.build.default.port}}\"\n        }\n    },\n    \"server/eula.txt\": {\n        \"parser\": \"properties\",\n        \"find\": {\n            \"eula\": \"true\"\n        }\n    },\n    \"config.yml\": {\n        \"parser\": \"yaml\",\n        \"find\": {\n            \"handler\": \"{{env.MCDR_HANDLER}}\",\n            \"start_command\": \"{{env.MCDR_START_COMMAND}}\"\n        }\n    }\n}",
+        "startup": "{\n    \"done\": \")! For help, type \"\n}",
         "logs": "{}",
-        "stop": "end"
+        "stop": "stop"
     },
     "scripts": {
         "installation": {
@@ -57,7 +57,7 @@
             "name": "\u865a\u62df\u673a\u53c2\u6570",
             "description": "\u6dfb\u52a0\u5728 `-jar` \u53c2\u6570\u524d\u7684\u53c2\u6570 (\u4e0d\u61c2\u52ff\u52a8)\nPS: \u8bf7\u4e0d\u8981\u5728\u6b64\u5904\u6dfb\u52a0 `-Xms` \u6216 `-Xmx` \u53c2\u6570, \u5426\u5219\u53ef\u80fd\u4f1a\u5bfc\u81f4\u65e0\u6cd5\u6b63\u5e38\u542f\u52a8\u670d\u52a1\u5668",
             "env_variable": "JAVA_OPTIONS",
-            "default_value": "-XX:+UseG1GC -XX:G1HeapRegionSize=4M -XX:+UnlockExperimentalVMOptions -XX:+ParallelRefProcEnabled -XX:+AlwaysPreTouch -XX:MaxInlineLevel=15 -Dterminal.jline=false -Dterminal.ansi=true",
+            "default_value": "-XX:+UseG1GC -XX:+ParallelRefProcEnabled -XX:MaxGCPauseMillis=200 -XX:+UnlockExperimentalVMOptions -XX:+DisableExplicitGC -XX:+AlwaysPreTouch -XX:G1HeapWastePercent=5 -XX:G1MixedGCCountTarget=4 -XX:InitiatingHeapOccupancyPercent=15 -XX:G1MixedGCLiveThresholdPercent=90 -XX:G1RSetUpdatingPauseTimePercent=5 -XX:SurvivorRatio=32 -XX:+PerfDisableSharedMem -XX:MaxTenuringThreshold=1 -Dusing.aikars.flags=https://mcflags.emc.gs -Daikars.new.flags=true -XX:G1NewSizePercent=30 -XX:G1MaxNewSizePercent=40 -XX:G1HeapRegionSize=8M -XX:G1ReservePercent=20 --add-modules=jdk.incubator.vector -Dterminal.jline=false -Dterminal.ansi=true",
             "user_viewable": true,
             "user_editable": true,
             "rules": "nullable|string",
