@@ -17,11 +17,11 @@ def iterate_all() -> Iterator[Context]:
     for java in ["8", "11", "17", "21"]:
         for type in ["general", "mcdr"]:
             if type == "general":
-                tag = f"bluefunny/minecraft:{type}-j{java}"
+                tag = f"bluefunny/pterodactyl:{type}-j{java}"
                 yield Context(java=java, type=type, mcdr="", tag=tag)
             if type == "mcdr":
                 for mcdr in ["latest", "2.12", "2.11", "2.10"]:
-                    tag = f"bluefunny/minecraft:{type}-j{java}-{mcdr}"
+                    tag = f"bluefunny/pterodactyl:{type}-j{java}-{mcdr}"
                     yield Context(java=java, type=type, mcdr=mcdr, tag=tag)
 
 

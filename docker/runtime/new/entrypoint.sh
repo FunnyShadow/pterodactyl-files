@@ -1,10 +1,11 @@
 #!/bin/bash
 set -e
-cd /workspace
+cd /home/container
 
-if [ "${STARTUP_CMD}" == "" ]; then
-    java -jar minecraft_server.jar --nogui
-else
-    STARTUP_EXPANDED=$(echo "$STARTUP_CMD" | envsubst)
-    eval "${STARTUP_EXPANDED}"
-fi
+# Replace Startup Variables
+STARTUP_CMD=$(echo "${STARTUP}" | sed -e 's/{{/${/g' -e 's/}}/}/g')
+STARTUP_EXPANDED=$(echo "$STARTUP_CMD" | envsubst)
+echo ":$(pwd)$ ${STARTUP_EXPANDED}"
+
+# Run the Server
+eval "${STARTUP_EXPANDED}"
