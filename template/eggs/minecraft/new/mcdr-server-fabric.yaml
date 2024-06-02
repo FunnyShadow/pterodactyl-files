@@ -60,8 +60,8 @@ config:
 scripts:
   installation:
     script:
-    container: alpine
-    entrypoint: bash
+    container: debian
+    entrypoint: sh
 variables:
 ## 用户可修改的变量
 - name: 服务端核心文件名

@@ -38,8 +38,8 @@
     "scripts": {
         "installation": {
             "script": null,
-            "container": "alpine",
-            "entrypoint": "bash"
+            "container": "debian",
+            "entrypoint": "sh"
         }
     },
     "variables": [
