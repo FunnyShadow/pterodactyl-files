@@ -1,0 +1,53 @@
+{
+    "_comment": "DO NOT EDIT: FILE GENERATED AUTOMATICALLY BY PTERODACTYL PANEL - PTERODACTYL.IO",
+    "meta": {
+        "version": "PTDL_v2",
+        "update_url": null
+    },
+    "exported_at": "2024-06-02T11:09:31+08:00",
+    "name": "Proxy (MCDR) | Waterfall",
+    "author": "noreply@trcloud.network",
+    "description": null,
+    "features": null,
+    "docker_images": {
+        "Java 21 ": " MCDR 2.12|bluefunny\/minecraft:mcdr-j21-2.12",
+        "Java 21": "bluefunny\/minecraft:general-j21"
+    },
+    "file_denylist": [],
+    "startup": "python3.12 -m mcdreforged",
+    "config": {
+        "files": "{\r\n    \"server\/config.yml\": {\r\n        \"parser\": \"yaml\",\r\n        \"find\": {\r\n            \"listeners[0].query_port\": \"{{server.build.default.port}}\",\r\n            \"listeners[0].host\": \"0.0.0.0:{{server.build.default.port}}\",\r\n            \"servers.*.address\": {\r\n                \"regex:^(127\\\\.0\\\\.0\\\\.1|localhost)(:\\\\d{1,5})?$\": \"{{config.docker.interface}}$2\"\r\n            }\r\n        }\r\n    },\r\n    \"config.yml\": {\r\n        \"parser\": \"yaml\",\r\n        \"find\": {\r\n            \"handler\": \"{{env.MCDR_HANDLER}}\",\r\n            \"start_command\": \"{{env.MCDR_START_COMMAND}}\"\r\n        }\r\n    }\r\n}",
+        "startup": "{\r\n    \"done\": \"Listening on \"\r\n}",
+        "logs": "{}",
+        "stop": "end"
+    },
+    "scripts": {
+        "installation": {
+            "script": null,
+            "container": "alpine",
+            "entrypoint": "bash"
+        }
+    },
+    "variables": [
+        {
+            "name": "\u670d\u52a1\u5668\u542f\u52a8\u547d\u4ee4",
+            "description": "MCDR \u914d\u7f6e\u6587\u4ef6\u4e2d\u7684 start_command \u9009\u9879\u7684\u503c",
+            "env_variable": "MCDR_START_COMMAND",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": false,
+            "rules": "required",
+            "field_type": "text"
+        },
+        {
+            "name": "\u670d\u52a1\u7aef\u5904\u7406\u5668",
+            "description": "MCDR \u914d\u7f6e\u6587\u4ef6\u4e2d\u7684 handler \u9009\u9879\u7684\u503c",
+            "env_variable": "MCDR_HANDLER",
+            "default_value": "waterfall_handler",
+            "user_viewable": true,
+            "user_editable": false,
+            "rules": "required",
+            "field_type": "text"
+        }
+    ]
+}

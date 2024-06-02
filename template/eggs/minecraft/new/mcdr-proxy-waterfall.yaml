@@ -1,0 +1,63 @@
+_comment: 'DO NOT EDIT: FILE GENERATED AUTOMATICALLY BY PTERODACTYL PANEL - PTERODACTYL.IO'
+meta:
+  version: PTDL_v2
+  update_url:
+exported_at: '2024-06-02T11:09:31+08:00'
+name: Proxy (MCDR) | Waterfall
+author: noreply@trcloud.network
+description:
+features:
+docker_images:
+  'Java 21 ': ' MCDR 2.12|bluefunny/minecraft:mcdr-j21-2.12'
+  Java 21: bluefunny/minecraft:general-j21
+file_denylist: []
+startup: python3.12 -m mcdreforged
+config:
+  files: |-
+    {
+        "server/config.yml": {
+            "parser": "yaml",
+            "find": {
+                "listeners[0].query_port": "{{server.build.default.port}}",
+                "listeners[0].host": "0.0.0.0:{{server.build.default.port}}",
+                "servers.*.address": {
+                    "regex:^(127\\.0\\.0\\.1|localhost)(:\\d{1,5})?$": "{{config.docker.interface}}$2"
+                }
+            }
+        },
+        "config.yml": {
+            "parser": "yaml",
+            "find": {
+                "handler": "{{env.MCDR_HANDLER}}",
+                "start_command": "{{env.MCDR_START_COMMAND}}"
+            }
+        }
+    }
+  startup: |-
+    {
+        "done": "Listening on "
+    }
+  logs: '{}'
+  stop: end
+scripts:
+  installation:
+    script:
+    container: alpine
+    entrypoint: bash
+variables:
+- name: 服务器启动命令
+  description: MCDR 配置文件中的 start_command 选项的值
+  env_variable: MCDR_START_COMMAND
+  default_value: ''
+  user_viewable: true
+  user_editable: false
+  rules: required
+  field_type: text
+- name: 服务端处理器
+  description: MCDR 配置文件中的 handler 选项的值
+  env_variable: MCDR_HANDLER
+  default_value: waterfall_handler
+  user_viewable: true
+  user_editable: false
+  rules: required
+  field_type: text
