@@ -36,10 +36,21 @@ print_log() {
 }
 
 arg_parser() {
-  while getopts "d:m:o:hv" opt; do
+  while getopts "d:f:m:o:hv" opt; do
     case ${opt} in
     d)
-      directory=$OPTARG
+      if [ -f "$OPTARG" ]; then
+        directory=$OPTARG
+      else
+        print_log "FATAL" "File not found: $OPTARG"
+      fi
+      ;;
+    f)
+      if [ -f "$OPTARG" ]; then
+        file=$OPTARG
+      else
+        print_log "FATAL" "File not found: $OPTARG"
+      fi
       ;;
     m)
       if [ "$OPTARG" = "y2j" ] || [ "$OPTARG" = "j2y" ]; then
@@ -55,6 +66,7 @@ arg_parser() {
       echo "Usage: convert_tools.sh [OPTIONS]"
       echo ""
       echo "  -d <directory>  Directory to search for files"
+      echo "  -f <file>       File to convert"
       echo "  -m <mode>       Mode to use (y2j or j2y)"
       echo "  -o <env>        Override environment variables"
       echo "  -h              Show this help message"
@@ -90,8 +102,8 @@ main() {
     ;;
   esac
 
-  for input_ext in "${input_exts[@]}"; do
-    while IFS= read -r file; do
+  if [ -n "$file" ]; then
+    for input_ext in "${input_exts[@]}"; do
       local input="$file"
       local output="${input%."$input_ext"}.$output_ext"
 
@@ -105,8 +117,26 @@ main() {
       else
         ((file_count++))
       fi
-    done < <(find "$directory" -name "*.$input_ext")
-  done
+    done
+  else
+    for input_ext in "${input_exts[@]}"; do
+      while IFS= read -r file; do
+        local input="$file"
+        local output="${input%."$input_ext"}.$output_ext"
+
+        if $DEBUG; then
+          print_log "DEBUG" "Converting file $input -> $output"
+        fi
+
+        if ! python3 convert.py -i "${input}" -o "${output}" 2>convert_tool_temp_err_buffer; then
+          print_log "ERROR" "Error converting file: $input"
+          cat convert_tool_temp_err_buffer
+        else
+          ((file_count++))
+        fi
+      done < <(find "$directory" -name "*.$input_ext")
+    done
+  fi
 
   if [ $file_count -eq 0 ]; then
     print_log "WARN" "No matching files were detected!"

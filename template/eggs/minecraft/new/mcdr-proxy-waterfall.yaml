@@ -56,8 +56,8 @@ config:
 scripts:
   installation:
     script:
-    container: alpine
-    entrypoint: bash
+    container: debian
+    entrypoint: sh
 variables:
 ## 用户可修改的变量
 - name: 服务端核心文件名
@@ -85,7 +85,7 @@ variables:
     MCDR 配置文件中的 `handler` 选项的值
     PS: 此项仅供创建服务器时使用, 用户无法查看或修改
   env_variable: MCDR_HANDLER
-  default_value: vanilla_handler
+  default_value: waterfall_handler
   user_viewable: false
   user_editable: false
   rules: required

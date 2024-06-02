@@ -38,8 +38,8 @@
     "scripts": {
         "installation": {
             "script": null,
-            "container": "alpine",
-            "entrypoint": "bash"
+            "container": "debian",
+            "entrypoint": "sh"
         }
     },
     "variables": [
@@ -67,7 +67,7 @@
             "name": "\u670d\u52a1\u7aef\u5904\u7406\u5668",
             "description": "MCDR \u914d\u7f6e\u6587\u4ef6\u4e2d\u7684 `handler` \u9009\u9879\u7684\u503c\nPS: \u6b64\u9879\u4ec5\u4f9b\u521b\u5efa\u670d\u52a1\u5668\u65f6\u4f7f\u7528, \u7528\u6237\u65e0\u6cd5\u67e5\u770b\u6216\u4fee\u6539",
             "env_variable": "MCDR_HANDLER",
-            "default_value": "vanilla_handler",
+            "default_value": "waterfall_handler",
             "user_viewable": false,
             "user_editable": false,
             "rules": "required",
