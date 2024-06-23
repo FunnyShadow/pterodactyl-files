@@ -13,7 +13,7 @@ docker_images:
   'Java 11': 'bluefunny/pterodactyl:general-j11'
   'Java 8': 'bluefunny/pterodactyl:general-j8'
 file_denylist: []
-startup: '{{OPTIONS}} java -Xms{{MIN_MEM}}M -Xmx{{MAX_MEM}}M {{JAVA_OPTIONS}} -jar {{SERVER_JARFILE}}'
+startup: '{{OPTIONS}} java -XX:MaxRAM={{SERVER_MEMORY}}M -Xms{{MIN_MEM}}M -Xmx{{MAX_MEM}}M {{JAVA_OPTIONS}} -jar {{SERVER_JARFILE}}'
 config:
   files: |-
     {
