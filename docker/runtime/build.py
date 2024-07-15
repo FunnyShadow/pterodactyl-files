@@ -49,6 +49,9 @@ def cmd_build(args: argparse.Namespace):
             f"MCDR={ctx.mcdr}",
         ]
 
+        if args.region:
+            cmd.extend(["--build-arg", f"REGION={args.region}"])
+
         if args.http_proxy is not None:
             cmd.extend(
                 [
@@ -87,6 +90,9 @@ def main():
     )
     parser_build.add_argument(
         "--http-proxy", help="Set the url of http proxy to be used in build"
+    )
+    parser_build.add_argument(
+        "-r", "--region", choices=["china", "global"], help="Specify the region for image source"
     )
 
     subparsers.add_parser("push", help="Push all images")
