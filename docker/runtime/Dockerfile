@@ -52,7 +52,8 @@ RUN if [ "${TYPE}" = "mcdr" ]; then \
         rm -rf /tmp/Python-${PYTHON}; \
         rm -rf /tmp/Python-${PYTHON}.tgz; \
         apt-get remove -y build-essential libncursesw5-dev libssl-dev libsqlite3-dev tk-dev libgdbm-dev libc6-dev libbz2-dev libffi-dev zlib1g-dev; \
-    fi; \
+    fi;
+RUN \
     apt-get autoremove -y; \
     apt-get clean;
 
