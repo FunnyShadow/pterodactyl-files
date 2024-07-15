@@ -99,7 +99,7 @@ def main():
         epilog="""
 Examples:
   %(prog)s build -r china
-  %(prog)s build --region global --http-proxy http://proxy.example.com:8080
+  %(prog)s build -r global --http-proxy http://proxy.example.com:8080
   %(prog)s push
   %(prog)s delete
         """
@@ -114,7 +114,7 @@ Examples:
     parser_build = subparsers.add_parser("build", help="Build all images")
     parser_build.add_argument("-p", "--push", action="store_true", help="Push after build")
     parser_build.add_argument("--http-proxy", help="Set the URL of HTTP proxy to be used in build")
-    parser_build.add_argument("-r", "--region", choices=["china", "global"], help="Specify the region for image source")
+    parser_build.add_argument("-r", "--region", choices=["china", "global"], required=True, help="Specify the region for image source")
 
     subparsers.add_parser("push", help="Push all images")
     subparsers.add_parser("delete", help="Delete all images")
