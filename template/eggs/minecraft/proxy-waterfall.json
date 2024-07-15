@@ -18,7 +18,7 @@
     "file_denylist": [],
     "startup": "{{OPTIONS}} java -XX:MaxRAM={{SERVER_MEMORY}}M -Xms{{MIN_MEM}}M -Xmx{{MAX_MEM}}M {{JAVA_OPTIONS}} -jar {{SERVER_JARFILE}}",
     "config": {
-        "files": "{\n    \"server/config.yml\": {\n        \"parser\": \"yaml\",\n        \"find\": {\n            \"listeners[0].host\": \"0.0.0.0:{{server.build.default.port}}\",\n            \"servers.*.address\": {\n                \"regex:^(127\\\\.0\\\\.0\\\\.1|localhost)(:\\\\d{1,5})?$\": \"{{config.docker.interface}}$2\"\n            }\n        }\n    }\n}",
+        "files": "{\n    \"server/config.yml\": {\n        \"parser\": \"yaml\",\n        \"find\": {\n            \"listeners[0].query_port\": \"{{server.build.default.port}}\",\n            \"listeners[0].host\": \"0.0.0.0:{{server.build.default.port}}\",\n            \"servers.*.address\": {\n                \"regex:^(127\\\\.0\\\\.0\\\\.1|localhost)(:\\\\d{1,5})?$\": \"{{config.docker.interface}}$2\"\n            }\n        }\n    }\n}",
         "startup": "{\n    \"done\": \"Listening on \"\n}",
         "logs": "{}",
         "stop": "end"

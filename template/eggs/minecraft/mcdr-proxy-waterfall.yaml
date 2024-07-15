@@ -32,6 +32,7 @@ config:
         "server/config.yml": {
             "parser": "yaml",
             "find": {
+                "listeners[0].query_port": "{{server.build.default.port}}",
                 "listeners[0].host": "0.0.0.0:{{server.build.default.port}}",
                 "servers.*.address": {
                     "regex:^(127\\.0\\.0\\.1|localhost)(:\\d{1,5})?$": "{{config.docker.interface}}$2"

@@ -33,7 +33,8 @@ config:
             "parser": "properties",
             "find": {
                 "server-ip": "0.0.0.0",
-                "server-port": "{{server.build.default.port}}"
+                "server-port": "{{server.build.default.port}}",
+                "query.port": "{{server.build.default.port}}"
             }
         },
         "server/eula.txt": {
