@@ -23,7 +23,7 @@ RUN if [ "${TYPE}" = "mcdr" ]; then \
         cd Python-${PYTHON}; \
         ./configure --enable-optimizations; \
         make -j 8; \
-        make altinstall; \
+        make install; \
     fi
 
 # Install MCDR and requirements
@@ -32,13 +32,13 @@ ARG TYPE
 ARG MCDR_REQUIREMENT=mcdreforged
 RUN if [ "${TYPE}" = "mcdr" ]; then \
         if [ "${REGION}" = "china" ]; then \
-            python3.12 -m pip install -U pip -i https://mirrors.cernet.edu.cn/pypi/web/simple; \
-            python3.12 -m pip install ${MCDR_REQUIREMENT} -i https://mirrors.cernet.edu.cn/pypi/web/simple; \
-            python3.12 -m pip install -r /requirements.txt -i https://mirrors.cernet.edu.cn/pypi/web/simple; \
+            python3 -m pip install -U pip -i https://mirrors.cernet.edu.cn/pypi/web/simple; \
+            python3 -m pip install ${MCDR_REQUIREMENT} -i https://mirrors.cernet.edu.cn/pypi/web/simple; \
+            python3 -m pip install -r /requirements.txt -i https://mirrors.cernet.edu.cn/pypi/web/simple; \
         else \
-            python3.12 -m pip install -U pip; \
-            python3.12 -m pip install ${MCDR_REQUIREMENT}; \
-            python3.12 -m pip install -r /requirements.txt; \
+            python3 -m pip install -U pip; \
+            python3 -m pip install ${MCDR_REQUIREMENT}; \
+            python3 -m pip install -r /requirements.txt; \
         fi \
     fi
 
