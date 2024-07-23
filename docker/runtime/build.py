@@ -61,7 +61,7 @@ def run_command_with_retry(cmd: list[str], max_retries: int = 3) -> subprocess.C
             print_error(f"Command failed with exit code {e.returncode}")
             print_error(f"Command: {' '.join(cmd)}")
             if attempt < max_retries - 1:
-                print_info(f"Retrying... (Attempt {attempt + 2} of {max_retries})")
+                print_info(f"Retrying... (Attempt {attempt + 1} of {max_retries})")
                 time.sleep(5)  # Wait for 5 seconds before retrying
             else:
                 print_error(f"Max retries reached. Command failed.")
