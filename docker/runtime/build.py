@@ -5,11 +5,11 @@ import subprocess
 import sys
 import time
 from typing import Iterator, NamedTuple
-from colorama import init, Fore, Style
+from colorama import init, Fore, Style, Back
 from datetime import datetime
 
 # Initialize colorama for cross-platform colored output
-init()
+init(autoreset=True)
 
 class Context(NamedTuple):
     java: str
@@ -28,51 +28,43 @@ def iterate_all() -> Iterator[Context]:
                     tag = f"bluefunny/pterodactyl:{type}-j{java}-{mcdr}"
                     yield Context(java=java, type=type, mcdr=mcdr, tag=tag)
 
-def get_timestamp():
-    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
 def print_log(level: str, message: str):
-    timestamp = get_timestamp()
-    if level == "INFO":
-        level_color = Fore.BLUE
-    elif level == "SUCCESS":
-        level_color = Fore.GREEN
-    elif level == "ERROR":
-        level_color = Fore.RED
-    else:
-        level_color = Fore.WHITE
-    
-    print(f"{Fore.CYAN}[{timestamp}]{Style.RESET_ALL} {level_color}[{level}]{Style.RESET_ALL} {message}")
-
-def print_info(message: str):
-    print_log("INFO", message)
-
-def print_success(message: str):
-    print_log("SUCCESS", message)
-
-def print_error(message: str):
-    print_log("ERROR", message)
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    level_colors = {
+        "INFO": f"{Fore.WHITE}{Back.BLUE}",
+        "SUCCESS": f"{Fore.WHITE}{Back.GREEN}",
+        "ERROR": f"{Fore.WHITE}{Back.RED}",
+        "WARN": f"{Fore.BLACK}{Back.YELLOW}"
+    }
+    level_color = level_colors.get(level, Fore.WHITE)
+    print(f"{Fore.CYAN}[{timestamp}]{Style.RESET_ALL} {level_color}{level:^7}{Style.RESET_ALL} {message}")
 
 def run_command_with_retry(cmd: list[str], max_retries: int = 3) -> subprocess.CompletedProcess:
     for attempt in range(max_retries):
         try:
             return subprocess.run(cmd, check=True, stdout=sys.stdout, stderr=sys.stderr)
         except subprocess.CalledProcessError as e:
-            print_error(f"Command failed with exit code {e.returncode}")
-            print_error(f"Command: {' '.join(cmd)}")
+            print_log("ERROR", f"Command failed with exit code {e.returncode}")
+            print_log("ERROR", f"Command: {' '.join(cmd)}")
             if attempt < max_retries - 1:
-                print_info(f"Retrying... (Attempt {attempt + 1} of {max_retries})")
+                print_log("WARN", f"Retrying... (Attempt {attempt + 1} of {max_retries})")
                 time.sleep(5)  # Wait for 5 seconds before retrying
             else:
-                print_error(f"Max retries reached. Command failed.")
+                print_log("ERROR", "Max retries reached. Command failed.")
                 raise
+
+def execute_command(cmd: list[str], retry: int, success_msg: str, error_msg: str):
+    try:
+        run_command_with_retry(cmd, retry)
+        print_log("SUCCESS", success_msg)
+        return True
+    except subprocess.CalledProcessError:
+        print_log("ERROR", error_msg)
+        return False
 
 def cmd_build(args: argparse.Namespace):
     for ctx in iterate_all():
-        print_info(f"Building {ctx.type} image...")
-        print_info(f"Java: {ctx.java}")
-        if ctx.type == "mcdr":
-            print_info(f"MCDR: {ctx.mcdr}")
+        print_log("INFO", f"Building {ctx.type} image (Java: {ctx.java}, MCDR: {ctx.mcdr})")
 
         cmd = [
             "docker", "build", os.getcwd(),
@@ -80,10 +72,8 @@ def cmd_build(args: argparse.Namespace):
             "--build-arg", f"TYPE={ctx.type}",
             "--build-arg", f"JAVA={ctx.java}",
             "--build-arg", f"MCDR={ctx.mcdr}",
+            "--build-arg", f"REGION={args.region}"
         ]
-
-        if args.region:
-            cmd.extend(["--build-arg", f"REGION={args.region}"])
 
         if args.http_proxy:
             cmd.extend([
@@ -91,36 +81,22 @@ def cmd_build(args: argparse.Namespace):
                 "--build-arg", f"https_proxy={args.http_proxy}",
             ])
 
-        try:
-            run_command_with_retry(cmd, args.retry)
-            print_success(f"Successfully built image: {ctx.tag}")
-
+        if execute_command(cmd, args.retry, f"Successfully built image: {ctx.tag}", f"Failed to build image: {ctx.tag}"):
             if args.push:
                 cmd_push_single(ctx.tag, args.retry)
-        except subprocess.CalledProcessError:
-            print_error(f"Failed to build image: {ctx.tag}")
-            continue
 
 def cmd_push(args: argparse.Namespace):
     for ctx in iterate_all():
         cmd_push_single(ctx.tag, args.retry)
 
-def cmd_push_single(tag: str, max_retries: int):
-    print_info(f"Pushing image: {tag}")
-    try:
-        run_command_with_retry(["docker", "push", tag], max_retries)
-        print_success(f"Successfully pushed image: {tag}")
-    except subprocess.CalledProcessError:
-        print_error(f"Failed to push image: {tag}")
+def cmd_push_single(tag: str, retry: int):
+    print_log("INFO", f"Pushing image: {tag}")
+    execute_command(["docker", "push", tag], retry, f"Successfully pushed image: {tag}", f"Failed to push image: {tag}")
 
 def cmd_delete(args: argparse.Namespace):
     for ctx in iterate_all():
-        print_info(f"Deleting image: {ctx.tag}")
-        try:
-            run_command_with_retry(["docker", "image", "rm", ctx.tag], args.retry)
-            print_success(f"Successfully deleted image: {ctx.tag}")
-        except subprocess.CalledProcessError:
-            print_error(f"Failed to delete image: {ctx.tag}")
+        print_log("INFO", f"Deleting image: {ctx.tag}")
+        execute_command(["docker", "image", "rm", ctx.tag], args.retry, f"Successfully deleted image: {ctx.tag}", f"Failed to delete image: {ctx.tag}")
 
 def main():
     parser = argparse.ArgumentParser(
@@ -136,12 +112,7 @@ Examples:
     )
     parser.add_argument("-r", "--retry", type=int, default=3, help="Number of retries for failed operations (default: 3)")
     
-    subparsers = parser.add_subparsers(
-        title="Commands",
-        dest="command",
-        required=True,
-        metavar="COMMAND"
-    )
+    subparsers = parser.add_subparsers(title="Commands", dest="command", required=True, metavar="COMMAND")
 
     parser_build = subparsers.add_parser("build", help="Build all images")
     parser_build.add_argument("region", choices=["china", "global"], help="Specify the region for image source")
@@ -161,7 +132,7 @@ Examples:
         elif args.command == "delete":
             cmd_delete(args)
     except KeyboardInterrupt:
-        print_error("\nOperation canceled by user")
+        print_log("ERROR", "Operation canceled by user")
         sys.exit(1)
 
 if __name__ == "__main__":
