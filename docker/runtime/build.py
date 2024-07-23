@@ -3,6 +3,7 @@ import argparse
 import os
 import subprocess
 import sys
+import time
 from typing import Iterator, NamedTuple
 from colorama import init, Fore, Style
 from datetime import datetime
@@ -52,13 +53,19 @@ def print_success(message: str):
 def print_error(message: str):
     print_log("ERROR", message)
 
-def run_command(cmd: list[str], check: bool = True) -> subprocess.CompletedProcess:
-    try:
-        return subprocess.run(cmd, check=check, stdout=sys.stdout, stderr=sys.stderr)
-    except subprocess.CalledProcessError as e:
-        print_error(f"Command failed with exit code {e.returncode}")
-        print_error(f"Command: {' '.join(cmd)}")
-        raise
+def run_command_with_retry(cmd: list[str], max_retries: int = 3) -> subprocess.CompletedProcess:
+    for attempt in range(max_retries):
+        try:
+            return subprocess.run(cmd, check=True, stdout=sys.stdout, stderr=sys.stderr)
+        except subprocess.CalledProcessError as e:
+            print_error(f"Command failed with exit code {e.returncode}")
+            print_error(f"Command: {' '.join(cmd)}")
+            if attempt < max_retries - 1:
+                print_info(f"Retrying... (Attempt {attempt + 2} of {max_retries})")
+                time.sleep(5)  # Wait for 5 seconds before retrying
+            else:
+                print_error(f"Max retries reached. Command failed.")
+                raise
 
 def cmd_build(args: argparse.Namespace):
     for ctx in iterate_all():
@@ -84,26 +91,36 @@ def cmd_build(args: argparse.Namespace):
                 "--build-arg", f"https_proxy={args.http_proxy}",
             ])
 
-        run_command(cmd)
-        print_success(f"Successfully built image: {ctx.tag}")
+        try:
+            run_command_with_retry(cmd, args.retry)
+            print_success(f"Successfully built image: {ctx.tag}")
 
-        if args.push:
-            cmd_push_single(ctx.tag)
+            if args.push:
+                cmd_push_single(ctx.tag, args.retry)
+        except subprocess.CalledProcessError:
+            print_error(f"Failed to build image: {ctx.tag}")
+            continue
 
 def cmd_push(args: argparse.Namespace):
     for ctx in iterate_all():
-        cmd_push_single(ctx.tag)
+        cmd_push_single(ctx.tag, args.retry)
 
-def cmd_push_single(tag: str):
+def cmd_push_single(tag: str, max_retries: int):
     print_info(f"Pushing image: {tag}")
-    run_command(["docker", "push", tag])
-    print_success(f"Successfully pushed image: {tag}")
+    try:
+        run_command_with_retry(["docker", "push", tag], max_retries)
+        print_success(f"Successfully pushed image: {tag}")
+    except subprocess.CalledProcessError:
+        print_error(f"Failed to push image: {tag}")
 
 def cmd_delete(args: argparse.Namespace):
     for ctx in iterate_all():
         print_info(f"Deleting image: {ctx.tag}")
-        run_command(["docker", "image", "rm", ctx.tag])
-        print_success(f"Successfully deleted image: {ctx.tag}")
+        try:
+            run_command_with_retry(["docker", "image", "rm", ctx.tag], args.retry)
+            print_success(f"Successfully deleted image: {ctx.tag}")
+        except subprocess.CalledProcessError:
+            print_error(f"Failed to delete image: {ctx.tag}")
 
 def main():
     parser = argparse.ArgumentParser(
@@ -117,6 +134,8 @@ Examples:
   %(prog)s delete
         """
     )
+    parser.add_argument("-r", "--retry", type=int, default=3, help="Number of retries for failed operations (default: 3)")
+    
     subparsers = parser.add_subparsers(
         title="Commands",
         dest="command",
@@ -141,8 +160,6 @@ Examples:
             cmd_push(args)
         elif args.command == "delete":
             cmd_delete(args)
-    except subprocess.CalledProcessError:
-        sys.exit(1)
     except KeyboardInterrupt:
         print_error("\nOperation canceled by user")
         sys.exit(1)
