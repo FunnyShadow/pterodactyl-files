@@ -5,6 +5,7 @@ import subprocess
 import sys
 from typing import Iterator, NamedTuple
 from colorama import init, Fore, Style
+from datetime import datetime
 
 # Initialize colorama for cross-platform colored output
 init()
@@ -26,33 +27,45 @@ def iterate_all() -> Iterator[Context]:
                     tag = f"bluefunny/pterodactyl:{type}-j{java}-{mcdr}"
                     yield Context(java=java, type=type, mcdr=mcdr, tag=tag)
 
+def get_timestamp():
+    return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+def print_log(level: str, message: str):
+    timestamp = get_timestamp()
+    if level == "INFO":
+        level_color = Fore.BLUE
+    elif level == "SUCCESS":
+        level_color = Fore.GREEN
+    elif level == "ERROR":
+        level_color = Fore.RED
+    else:
+        level_color = Fore.WHITE
+    
+    print(f"{Fore.CYAN}[{timestamp}]{Style.RESET_ALL} {level_color}[{level}]{Style.RESET_ALL} {message}")
+
 def print_info(message: str):
-    print(f"{Fore.CYAN}{message}{Style.RESET_ALL}")
+    print_log("INFO", message)
 
 def print_success(message: str):
-    print(f"{Fore.GREEN}{message}{Style.RESET_ALL}")
+    print_log("SUCCESS", message)
 
 def print_error(message: str):
-    print(f"{Fore.RED}{message}{Style.RESET_ALL}", file=sys.stderr)
+    print_log("ERROR", message)
 
 def run_command(cmd: list[str], check: bool = True) -> subprocess.CompletedProcess:
     try:
-        return subprocess.run(cmd, check=check, capture_output=True, text=True)
+        return subprocess.run(cmd, check=check, stdout=sys.stdout, stderr=sys.stderr)
     except subprocess.CalledProcessError as e:
         print_error(f"Command failed with exit code {e.returncode}")
         print_error(f"Command: {' '.join(cmd)}")
-        if e.stdout:
-            print_error(f"stdout:\n{e.stdout}")
-        if e.stderr:
-            print_error(f"stderr:\n{e.stderr}")
         raise
 
 def cmd_build(args: argparse.Namespace):
     for ctx in iterate_all():
-        print_info(f"> Building {ctx.type} image...")
-        print_info(f"> Java: {ctx.java}")
+        print_info(f"Building {ctx.type} image...")
+        print_info(f"Java: {ctx.java}")
         if ctx.type == "mcdr":
-            print_info(f"> MCDR: {ctx.mcdr}")
+            print_info(f"MCDR: {ctx.mcdr}")
 
         cmd = [
             "docker", "build", os.getcwd(),
@@ -98,8 +111,8 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  %(prog)s build -r china
-  %(prog)s build -r global --http-proxy http://proxy.example.com:8080
+  %(prog)s build china
+  %(prog)s build global --http-proxy http://proxy.example.com:8080
   %(prog)s push
   %(prog)s delete
         """
@@ -112,9 +125,9 @@ Examples:
     )
 
     parser_build = subparsers.add_parser("build", help="Build all images")
+    parser_build.add_argument("region", choices=["china", "global"], help="Specify the region for image source")
     parser_build.add_argument("-p", "--push", action="store_true", help="Push after build")
     parser_build.add_argument("--http-proxy", help="Set the URL of HTTP proxy to be used in build")
-    parser_build.add_argument("-r", "--region", choices=["china", "global"], required=True, help="Specify the region for image source")
 
     subparsers.add_parser("push", help="Push all images")
     subparsers.add_parser("delete", help="Delete all images")
