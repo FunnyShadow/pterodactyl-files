@@ -81,9 +81,8 @@ ARG MCDR_REQUIREMENT=mcdreforged
 RUN set -ex; \
     if [ "${TYPE}" = "mcdr" ]; then \
         if [ "${REGION}" = "china" ]; then \
-            python3 -m pip install -U pip -i https://mirrors.cernet.edu.cn/pypi/web/simple; \
-            python3 -m pip install ${MCDR_REQUIREMENT} -i https://mirrors.cernet.edu.cn/pypi/web/simple; \
-            python3 -m pip install -r /requirements.txt -i https://mirrors.cernet.edu.cn/pypi/web/simple; \
+            python3.12 -m pip install --no-cache-dir -U pip -i https://mirrors.cernet.edu.cn/pypi/web/simple && \
+            python3.12 -m pip install --no-cache-dir ${MCDR_REQUIREMENT} -r /requirements.txt -i https://mirrors.cernet.edu.cn/pypi/web/simple; \
         else \
             python3 -m pip install -U pip; \
             python3 -m pip install ${MCDR_REQUIREMENT}; \

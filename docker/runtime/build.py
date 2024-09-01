@@ -11,7 +11,7 @@ from typing import Iterator, NamedTuple
 from colorama import init, Fore
 
 # Initialize colorama for cross-platform colored output
-init()
+init(autoreset=True)
 
 class Context(NamedTuple):
     java: str
@@ -110,12 +110,9 @@ Examples:
   %(prog)s delete
         """
     )
-    subparsers = parser.add_subparsers(
-        title="Commands",
-        dest="command",
-        required=True,
-        metavar="COMMAND"
-    )
+    parser.add_argument("-r", "--retry", type=int, default=3, help="Number of retries for failed operations (default: 3)")
+    
+    subparsers = parser.add_subparsers(title="Commands", dest="command", required=True, metavar="COMMAND")
 
     parser_build = subparsers.add_parser("build", help="Build all images")
     parser_build.add_argument("region", choices=["china", "global"], help="Specify the region for image source")
