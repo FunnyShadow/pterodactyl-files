@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 import argparse
-import logging
+import subprocess
 import sys
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from functools import partial
+import time
+from typing import List, Iterator, NamedTuple
 from pathlib import Path
-from subprocess import CalledProcessError, CompletedProcess, run
-from typing import Iterator, NamedTuple
-
-from colorama import init, Fore
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from colorama import init, Fore, Style, Back
+from datetime import datetime
 
 # Initialize colorama for cross-platform colored output
 init(autoreset=True)
@@ -19,84 +18,115 @@ class Context(NamedTuple):
     mcdr: str
     tag: str
 
-def iterate_all() -> Iterator[Context]:
-    for java in ["8", "11", "17", "21"]:
-        for type in ["general", "mcdr"]:
-            if type == "general":
-                tag = f"bluefunny/pterodactyl:{type}-j{java}"
-                yield Context(java=java, type=type, mcdr="", tag=tag)
-            if type == "mcdr":
-                for mcdr in ["2.13", "2.12", "2.11", "2.10"]:
-                    tag = f"bluefunny/pterodactyl:{type}-j{java}-{mcdr}"
-                    yield Context(java=java, type=type, mcdr=mcdr, tag=tag)
+class Logger:
+    @staticmethod
+    def log(level: str, message: str):
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        level_colors = {
+            "INFO": f"{Fore.WHITE}{Back.BLUE}",
+            "SUCCESS": f"{Fore.WHITE}{Back.GREEN}",
+            "ERROR": f"{Fore.WHITE}{Back.RED}",
+            "WARN": f"{Fore.BLACK}{Back.YELLOW}"
+        }
+        level_color = level_colors.get(level, Fore.WHITE)
+        print(f"{Fore.CYAN}[{timestamp}]{Style.RESET_ALL} {level_color}{level:^7}{Style.RESET_ALL} {message}")
 
-def setup_logger():
-    logger = logging.getLogger(__name__)
-    logger.setLevel(logging.INFO)
-    handler = logging.StreamHandler()
-    handler.setFormatter(logging.Formatter('%(message)s'))
-    logger.addHandler(handler)
-    return logger
-
-logger = setup_logger()
-
-def run_command(cmd: list[str], check: bool = True) -> CompletedProcess:
-    try:
-        return run(cmd, check=check, capture_output=True, text=True)
-    except CalledProcessError as e:
-        logger.error(f"{Fore.RED}Command failed with exit code {e.returncode}")
-        logger.error(f"Command: {' '.join(cmd)}")
-        if e.stdout:
-            logger.error(f"stdout:\n{e.stdout}")
-        if e.stderr:
-            logger.error(f"stderr:\n{e.stderr}")
-        raise
-
-def build_image(ctx: Context, args: argparse.Namespace):
-    logger.info(f"{Fore.CYAN}> Building {ctx.type} image...")
-    logger.info(f"> Java: {ctx.java}")
-    if ctx.type == "mcdr":
-        logger.info(f"> MCDR: {ctx.mcdr}")
-
-    cmd = [
-        "docker", "build", str(Path.cwd()),
-        "-t", ctx.tag,
-        "--build-arg", f"TYPE={ctx.type}",
-        "--build-arg", f"JAVA={ctx.java}",
-        "--build-arg", f"MCDR={ctx.mcdr}",
-        "--build-arg", f"REGION={args.region}",
-    ]
-
-    if args.http_proxy:
-        cmd.extend([
-            "--build-arg", f"http_proxy={args.http_proxy}",
-            "--build-arg", f"https_proxy={args.http_proxy}",
-        ])
-
-    run_command(cmd)
-    logger.info(f"{Fore.GREEN}Successfully built image: {ctx.tag}")
-
-    if args.push:
-        push_image(ctx.tag)
-
-def push_image(tag: str):
-    logger.info(f"{Fore.CYAN}Pushing image: {tag}")
-    run_command(["docker", "push", tag])
-    logger.info(f"{Fore.GREEN}Successfully pushed image: {tag}")
-
-def delete_image(tag: str):
-    logger.info(f"{Fore.CYAN}Deleting image: {tag}")
-    run_command(["docker", "image", "rm", tag])
-    logger.info(f"{Fore.GREEN}Successfully deleted image: {tag}")
-
-def parallel_execute(func, iterable, max_workers=4):
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = [executor.submit(func, item) for item in iterable]
-        for future in as_completed(futures):
+class CommandExecutor:
+    @staticmethod
+    def run_with_retry(cmd: List[str], max_retries: int = 3) -> subprocess.CompletedProcess:
+        for attempt in range(max_retries):
             try:
-                future.result()
-            except CalledProcessError:
-                logger.error(f"{Fore.RED}An error occurred during execution")
+                return subprocess.run(cmd, check=True, stdout=sys.stdout, stderr=sys.stderr)
+            except subprocess.CalledProcessError as e:
+                Logger.log("ERROR", f"Command failed with exit code {e.returncode}")
+                Logger.log("ERROR", f"Command: {' '.join(cmd)}")
+                if attempt < max_retries - 1:
+                    Logger.log("WARN", f"Retrying... (Attempt {attempt + 1} of {max_retries})")
+                    time.sleep(5)  # Wait for 5 seconds before retrying
+                else:
+                    Logger.log("ERROR", "Max retries reached. Command failed.")
+                    raise
+
+    @staticmethod
+    def execute(cmd: List[str], retry: int, success_msg: str, error_msg: str) -> bool:
+        try:
+            CommandExecutor.run_with_retry(cmd, retry)
+            Logger.log("SUCCESS", success_msg)
+            return True
+        except subprocess.CalledProcessError:
+            Logger.log("ERROR", error_msg)
+            return False
+
+class DockerManager:
+    @staticmethod
+    def build_image(ctx: Context, args: argparse.Namespace) -> None:
+        Logger.log("INFO", f"Building {ctx.type} image (Java: {ctx.java}, MCDR: {ctx.mcdr})")
+
+        cmd = [
+            "docker", "build", str(Path.cwd()),
+            "-t", ctx.tag,
+            "--build-arg", f"TYPE={ctx.type}",
+            "--build-arg", f"JAVA={ctx.java}",
+            "--build-arg", f"MCDR={ctx.mcdr}",
+            "--build-arg", f"REGION={args.region}",
+        ]
+
+        if args.http_proxy:
+            cmd.extend([
+                "--build-arg", f"http_proxy={args.http_proxy}",
+                "--build-arg", f"https_proxy={args.http_proxy}",
+            ])
+
+        if CommandExecutor.execute(cmd, args.retry, f"Successfully built image: {ctx.tag}", f"Failed to build image: {ctx.tag}"):
+            if args.push:
+                DockerManager.push_image(ctx.tag, args.retry)
+
+    @staticmethod
+    def push_image(tag: str, retry: int) -> None:
+        Logger.log("INFO", f"Pushing image: {tag}")
+        CommandExecutor.execute(["docker", "push", tag], retry, f"Successfully pushed image: {tag}", f"Failed to push image: {tag}")
+
+    @staticmethod
+    def delete_image(tag: str, retry: int) -> None:
+        Logger.log("INFO", f"Deleting image: {tag}")
+        CommandExecutor.execute(["docker", "image", "rm", tag], retry, f"Successfully deleted image: {tag}", f"Failed to delete image: {tag}")
+
+class ContextGenerator:
+    @staticmethod
+    def iterate_all() -> Iterator[Context]:
+        for java in ["8", "11", "17", "21"]:
+            for type in ["general", "mcdr"]:
+                if type == "general":
+                    tag = f"bluefunny/pterodactyl:{type}-j{java}"
+                    yield Context(java=java, type=type, mcdr="", tag=tag)
+                if type == "mcdr":
+                    for mcdr in ["latest", "2.13", "2.12", "2.11", "2.10"]:
+                        tag = f"bluefunny/pterodactyl:{type}-j{java}-{mcdr}"
+                        yield Context(java=java, type=type, mcdr=mcdr, tag=tag)
+
+class ParallelExecutor:
+    @staticmethod
+    def execute(func, args_list, max_workers=None):
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            futures = [executor.submit(func, *args) for args in args_list]
+            for future in as_completed(futures):
+                try:
+                    future.result()
+                except Exception as exc:
+                    Logger.log("ERROR", f"Generated an exception: {exc}")
+
+class CommandHandler:
+    @staticmethod
+    def build(args: argparse.Namespace):
+        ParallelExecutor.execute(DockerManager.build_image, [(ctx, args) for ctx in ContextGenerator.iterate_all()])
+
+    @staticmethod
+    def push(args: argparse.Namespace):
+        ParallelExecutor.execute(DockerManager.push_image, [(ctx.tag, args.retry) for ctx in ContextGenerator.iterate_all()])
+
+    @staticmethod
+    def delete(args: argparse.Namespace):
+        ParallelExecutor.execute(DockerManager.delete_image, [(ctx.tag, args.retry) for ctx in ContextGenerator.iterate_all()])
 
 def main():
     parser = argparse.ArgumentParser(
@@ -126,13 +156,13 @@ Examples:
 
     try:
         if args.command == "build":
-            parallel_execute(partial(build_image, args=args), iterate_all())
+            CommandHandler.build(args)
         elif args.command == "push":
-            parallel_execute(push_image, (ctx.tag for ctx in iterate_all()))
+            CommandHandler.push(args)
         elif args.command == "delete":
-            parallel_execute(delete_image, (ctx.tag for ctx in iterate_all()))
+            CommandHandler.delete(args)
     except KeyboardInterrupt:
-        logger.error(f"{Fore.RED}\nOperation canceled by user")
+        Logger.log("ERROR", "Operation canceled by user")
         sys.exit(1)
 
 if __name__ == "__main__":
