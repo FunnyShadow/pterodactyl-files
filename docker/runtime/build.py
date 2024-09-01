@@ -3,11 +3,14 @@ import argparse
 import subprocess
 import sys
 import time
+import signal
 from typing import List, Iterator, NamedTuple
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from colorama import init, Fore, Style, Back
 from datetime import datetime
+import threading
+import itertools
 
 # Initialize colorama for cross-platform colored output
 init(autoreset=True)
@@ -31,21 +34,52 @@ class Logger:
         level_color = level_colors.get(level, Fore.WHITE)
         print(f"{Fore.CYAN}[{timestamp}]{Style.RESET_ALL} {level_color}{level:^7}{Style.RESET_ALL} {message}")
 
+class Spinner:
+    def __init__(self, message):
+        self.message = message
+        self.running = False
+        self.spinner = itertools.cycle(['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'])
+
+    def spin(self):
+        while self.running:
+            sys.stdout.write(f"\r{next(self.spinner)} {self.message}")
+            sys.stdout.flush()
+            time.sleep(0.1)
+        sys.stdout.write('\r' + ' ' * (len(self.message) + 2) + '\r')
+        sys.stdout.flush()
+
+    def start(self):
+        self.running = True
+        threading.Thread(target=self.spin).start()
+
+    def stop(self):
+        self.running = False
+
 class CommandExecutor:
     @staticmethod
     def run_with_retry(cmd: List[str], max_retries: int = 3) -> subprocess.CompletedProcess:
-        for attempt in range(max_retries):
-            try:
-                return subprocess.run(cmd, check=True, stdout=sys.stdout, stderr=sys.stderr)
-            except subprocess.CalledProcessError as e:
-                Logger.log("ERROR", f"Command failed with exit code {e.returncode}")
-                Logger.log("ERROR", f"Command: {' '.join(cmd)}")
-                if attempt < max_retries - 1:
-                    Logger.log("WARN", f"Retrying... (Attempt {attempt + 1} of {max_retries})")
-                    time.sleep(5)  # Wait for 5 seconds before retrying
-                else:
-                    Logger.log("ERROR", "Max retries reached. Command failed.")
-                    raise
+        spinner = Spinner(f"Running command: {' '.join(cmd)}")
+        spinner.start()
+        try:
+            for attempt in range(max_retries):
+                try:
+                    result = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                    spinner.stop()
+                    return result
+                except subprocess.CalledProcessError as e:
+                    spinner.stop()
+                    Logger.log("ERROR", f"Command failed with exit code {e.returncode}")
+                    Logger.log("ERROR", f"Command: {' '.join(cmd)}")
+                    Logger.log("ERROR", f"Error output: {e.stderr.decode('utf-8')}")
+                    if attempt < max_retries - 1:
+                        Logger.log("WARN", f"Retrying... (Attempt {attempt + 1} of {max_retries})")
+                        time.sleep(5)  # Wait for 5 seconds before retrying
+                        spinner.start()
+                    else:
+                        Logger.log("ERROR", "Max retries reached. Command failed.")
+                        raise
+        finally:
+            spinner.stop()
 
     @staticmethod
     def execute(cmd: List[str], retry: int, success_msg: str, error_msg: str) -> bool:
@@ -128,6 +162,10 @@ class CommandHandler:
     def delete(args: argparse.Namespace):
         ParallelExecutor.execute(DockerManager.delete_image, [(ctx.tag, args.retry) for ctx in ContextGenerator.iterate_all()])
 
+def signal_handler(signum, frame):
+    Logger.log("WARN", "Operation interrupted. Cleaning up...")
+    sys.exit(1)
+
 def main():
     parser = argparse.ArgumentParser(
         description="Docker image management script for Pterodactyl",
@@ -154,6 +192,9 @@ Examples:
 
     args = parser.parse_args()
 
+    # Set up signal handler for Ctrl+C
+    signal.signal(signal.SIGINT, signal_handler)
+
     try:
         if args.command == "build":
             CommandHandler.build(args)
@@ -161,8 +202,8 @@ Examples:
             CommandHandler.push(args)
         elif args.command == "delete":
             CommandHandler.delete(args)
-    except KeyboardInterrupt:
-        Logger.log("ERROR", "Operation canceled by user")
+    except Exception as e:
+        Logger.log("ERROR", f"An unexpected error occurred: {str(e)}")
         sys.exit(1)
 
 if __name__ == "__main__":
