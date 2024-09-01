@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[中文版本](README_CN.md) | [English Version](README.md)
+[中文版本](README.cn.md) | [English Version](README.md)
 
 </div>
 
