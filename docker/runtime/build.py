@@ -11,6 +11,7 @@ from colorama import init, Fore, Style, Back
 from datetime import datetime
 import threading
 import itertools
+import shutil
 
 # Initialize colorama for cross-platform colored output
 init(autoreset=True)
@@ -34,68 +35,70 @@ class Logger:
         level_color = level_colors.get(level, Fore.WHITE)
         print(f"{Fore.CYAN}[{timestamp}]{Style.RESET_ALL} {level_color}{level:^7}{Style.RESET_ALL} {message}")
 
-class Spinner:
-    def __init__(self, message):
-        self.message = message
-        self.running = False
+class TUI:
+    def __init__(self):
+        self.tasks = {}
+        self.lock = threading.Lock()
         self.spinner = itertools.cycle(['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'])
 
-    def spin(self):
-        while self.running:
-            sys.stdout.write(f"\r{next(self.spinner)} {self.message}")
+    def add_task(self, task_id, description):
+        with self.lock:
+            self.tasks[task_id] = {"description": description, "status": "pending"}
+        self.refresh()
+
+    def update_task(self, task_id, status):
+        with self.lock:
+            if task_id in self.tasks:
+                self.tasks[task_id]["status"] = status
+        self.refresh()
+
+    def refresh(self):
+        terminal_width = shutil.get_terminal_size().columns
+        with self.lock:
+            sys.stdout.write("\033[2J\033[H")  # Clear screen and move cursor to top-left
+            print(f"{Fore.CYAN}Docker Image Management{Style.RESET_ALL}".center(terminal_width))
+            print("=" * terminal_width)
+            for task_id, task in self.tasks.items():
+                status_color = Fore.YELLOW
+                status_symbol = next(self.spinner)
+                if task["status"] == "success":
+                    status_color = Fore.GREEN
+                    status_symbol = "✔"
+                elif task["status"] == "error":
+                    status_color = Fore.RED
+                    status_symbol = "✘"
+                print(f"{status_color}{status_symbol}{Style.RESET_ALL} {task['description']}")
             sys.stdout.flush()
-            time.sleep(0.1)
-        sys.stdout.write('\r' + ' ' * (len(self.message) + 2) + '\r')
-        sys.stdout.flush()
 
-    def start(self):
-        self.running = True
-        threading.Thread(target=self.spin).start()
-
-    def stop(self):
-        self.running = False
+tui = TUI()
 
 class CommandExecutor:
     @staticmethod
-    def run_with_retry(cmd: List[str], max_retries: int = 3) -> subprocess.CompletedProcess:
-        spinner = Spinner(f"Running command: {' '.join(cmd)}")
-        spinner.start()
-        try:
-            for attempt in range(max_retries):
-                try:
-                    result = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                    spinner.stop()
-                    return result
-                except subprocess.CalledProcessError as e:
-                    spinner.stop()
-                    Logger.log("ERROR", f"Command failed with exit code {e.returncode}")
-                    Logger.log("ERROR", f"Command: {' '.join(cmd)}")
-                    Logger.log("ERROR", f"Error output: {e.stderr.decode('utf-8')}")
-                    if attempt < max_retries - 1:
-                        Logger.log("WARN", f"Retrying... (Attempt {attempt + 1} of {max_retries})")
-                        time.sleep(5)  # Wait for 5 seconds before retrying
-                        spinner.start()
-                    else:
-                        Logger.log("ERROR", "Max retries reached. Command failed.")
-                        raise
-        finally:
-            spinner.stop()
+    def run_with_retry(cmd: List[str], task_id: str, max_retries: int = 3) -> subprocess.CompletedProcess:
+        for attempt in range(max_retries):
+            try:
+                result = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+                tui.update_task(task_id, "success")
+                return result
+            except subprocess.CalledProcessError as e:
+                tui.update_task(task_id, "error")
+                if attempt < max_retries - 1:
+                    time.sleep(5)  # Wait for 5 seconds before retrying
+                else:
+                    raise
 
     @staticmethod
-    def execute(cmd: List[str], retry: int, success_msg: str, error_msg: str) -> bool:
+    def execute(cmd: List[str], retry: int, task_id: str, description: str) -> bool:
+        tui.add_task(task_id, description)
         try:
-            CommandExecutor.run_with_retry(cmd, retry)
-            Logger.log("SUCCESS", success_msg)
+            CommandExecutor.run_with_retry(cmd, task_id, retry)
             return True
         except subprocess.CalledProcessError:
-            Logger.log("ERROR", error_msg)
             return False
 
 class DockerManager:
     @staticmethod
     def build_image(ctx: Context, args: argparse.Namespace) -> None:
-        Logger.log("INFO", f"Building {ctx.type} image (Java: {ctx.java}, MCDR: {ctx.mcdr})")
-
         cmd = [
             "docker", "build", str(Path.cwd()),
             "-t", ctx.tag,
@@ -111,19 +114,23 @@ class DockerManager:
                 "--build-arg", f"https_proxy={args.http_proxy}",
             ])
 
-        if CommandExecutor.execute(cmd, args.retry, f"Successfully built image: {ctx.tag}", f"Failed to build image: {ctx.tag}"):
+        task_id = f"build_{ctx.tag}"
+        description = f"Building {ctx.type} image (Java: {ctx.java}, MCDR: {ctx.mcdr})"
+        if CommandExecutor.execute(cmd, args.retry, task_id, description):
             if args.push:
                 DockerManager.push_image(ctx.tag, args.retry)
 
     @staticmethod
     def push_image(tag: str, retry: int) -> None:
-        Logger.log("INFO", f"Pushing image: {tag}")
-        CommandExecutor.execute(["docker", "push", tag], retry, f"Successfully pushed image: {tag}", f"Failed to push image: {tag}")
+        task_id = f"push_{tag}"
+        description = f"Pushing image: {tag}"
+        CommandExecutor.execute(["docker", "push", tag], retry, task_id, description)
 
     @staticmethod
     def delete_image(tag: str, retry: int) -> None:
-        Logger.log("INFO", f"Deleting image: {tag}")
-        CommandExecutor.execute(["docker", "image", "rm", tag], retry, f"Successfully deleted image: {tag}", f"Failed to delete image: {tag}")
+        task_id = f"delete_{tag}"
+        description = f"Deleting image: {tag}"
+        CommandExecutor.execute(["docker", "image", "rm", tag], retry, task_id, description)
 
 class ContextGenerator:
     @staticmethod
