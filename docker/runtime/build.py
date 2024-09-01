@@ -7,14 +7,13 @@ import signal
 from typing import List, Iterator, NamedTuple
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from colorama import init, Fore, Style, Back
 from datetime import datetime
-import threading
-import itertools
-import shutil
-
-# Initialize colorama for cross-platform colored output
-init(autoreset=True)
+import asyncio
+from textual.app import App, ComposeResult
+from textual.containers import Container, ScrollableContainer
+from textual.widgets import Header, Footer, Static, ProgressBar, Button, Log
+from textual.reactive import reactive
+from textual import events
 
 class Context(NamedTuple):
     java: str
@@ -22,83 +21,169 @@ class Context(NamedTuple):
     mcdr: str
     tag: str
 
-class Logger:
-    @staticmethod
-    def log(level: str, message: str):
-        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        level_colors = {
-            "INFO": f"{Fore.WHITE}{Back.BLUE}",
-            "SUCCESS": f"{Fore.WHITE}{Back.GREEN}",
-            "ERROR": f"{Fore.WHITE}{Back.RED}",
-            "WARN": f"{Fore.BLACK}{Back.YELLOW}"
-        }
-        level_color = level_colors.get(level, Fore.WHITE)
-        print(f"{Fore.CYAN}[{timestamp}]{Style.RESET_ALL} {level_color}{level:^7}{Style.RESET_ALL} {message}")
+class TaskStatus:
+    PENDING = "pending"
+    RUNNING = "running"
+    SUCCESS = "success"
+    ERROR = "error"
 
-class TUI:
+class Task:
+    def __init__(self, id: str, description: str):
+        self.id = id
+        self.description = description
+        self.status = TaskStatus.PENDING
+        self.progress = 0.0
+        self.log = []
+
+    def update(self, status: str, progress: float = None):
+        self.status = status
+        if progress is not None:
+            self.progress = progress
+
+    def add_log(self, message: str):
+        self.log.append(message)
+
+class TaskManager:
     def __init__(self):
         self.tasks = {}
-        self.lock = threading.Lock()
-        self.spinner = itertools.cycle(['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'])
 
-    def add_task(self, task_id, description):
-        with self.lock:
-            self.tasks[task_id] = {"description": description, "status": "pending"}
+    def add_task(self, task: Task):
+        self.tasks[task.id] = task
+
+    def update_task(self, task_id: str, status: str, progress: float = None):
+        if task_id in self.tasks:
+            self.tasks[task_id].update(status, progress)
+
+    def add_log(self, task_id: str, message: str):
+        if task_id in self.tasks:
+            self.tasks[task_id].add_log(message)
+
+class TaskWidget(Static):
+    def __init__(self, task: Task):
+        super().__init__()
+        self.task = task
+
+    def render(self):
+        status_color = {
+            TaskStatus.PENDING: "yellow",
+            TaskStatus.RUNNING: "blue",
+            TaskStatus.SUCCESS: "green",
+            TaskStatus.ERROR: "red"
+        }.get(self.task.status, "white")
+
+        return f"[{status_color}]{self.task.status:^8}[/] {self.task.description}"
+
+class TaskGroupWidget(Static):
+    def __init__(self, title: str):
+        super().__init__()
+        self.title = title
+
+    def compose(self) -> ComposeResult:
+        yield Static(f"[bold]{self.title}[/bold]")
+        yield Container(id=f"{self.title.lower()}-tasks")
+
+class DockerManagerTUI(App):
+    BINDINGS = [("q", "quit", "Quit")]
+
+    def __init__(self, task_manager: TaskManager):
+        super().__init__()
+        self.task_manager = task_manager
+        self.selected_task = None
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        yield Container(
+            TaskGroupWidget("General"),
+            TaskGroupWidget("MCDR"),
+            id="task-groups"
+        )
+        yield Static("Select a task to view its log", id="log-header")
+        yield Log(id="task-log")
+        yield Footer()
+
+    def on_mount(self):
+        self.update_tasks()
+
+    def update_tasks(self):
+        general_container = self.query_one("#general-tasks")
+        mcdr_container = self.query_one("#mcdr-tasks")
+
+        general_container.remove_children()
+        mcdr_container.remove_children()
+
+        for task in self.task_manager.tasks.values():
+            task_widget = TaskWidget(task)
+            if "general" in task.id:
+                general_container.mount(task_widget)
+            else:
+                mcdr_container.mount(task_widget)
+
         self.refresh()
 
-    def update_task(self, task_id, status):
-        with self.lock:
-            if task_id in self.tasks:
-                self.tasks[task_id]["status"] = status
-        self.refresh()
+    def on_button_pressed(self, event: Button.Pressed):
+        self.selected_task = event.button.id
+        self.update_log()
 
-    def refresh(self):
-        terminal_width = shutil.get_terminal_size().columns
-        with self.lock:
-            sys.stdout.write("\033[2J\033[H")  # Clear screen and move cursor to top-left
-            print(f"{Fore.CYAN}Docker Image Management{Style.RESET_ALL}".center(terminal_width))
-            print("=" * terminal_width)
-            for task_id, task in self.tasks.items():
-                status_color = Fore.YELLOW
-                status_symbol = next(self.spinner)
-                if task["status"] == "success":
-                    status_color = Fore.GREEN
-                    status_symbol = "✔"
-                elif task["status"] == "error":
-                    status_color = Fore.RED
-                    status_symbol = "✘"
-                print(f"{status_color}{status_symbol}{Style.RESET_ALL} {task['description']}")
-            sys.stdout.flush()
+    def update_log(self):
+        if self.selected_task:
+            task = self.task_manager.tasks.get(self.selected_task)
+            if task:
+                log_widget = self.query_one("#task-log")
+                log_widget.clear()
+                for line in task.log:
+                    log_widget.write(line)
 
-tui = TUI()
+    async def update_ui(self):
+        while True:
+            self.update_tasks()
+            self.update_log()
+            await asyncio.sleep(0.1)
 
 class CommandExecutor:
     @staticmethod
-    def run_with_retry(cmd: List[str], task_id: str, max_retries: int = 3) -> subprocess.CompletedProcess:
+    async def run_with_retry(cmd: List[str], task_id: str, task_manager: TaskManager, max_retries: int = 3) -> subprocess.CompletedProcess:
         for attempt in range(max_retries):
             try:
-                result = subprocess.run(cmd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-                tui.update_task(task_id, "success")
-                return result
+                task_manager.update_task(task_id, TaskStatus.RUNNING)
+                process = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+
+                while True:
+                    line = await process.stdout.readline()
+                    if not line:
+                        break
+                    task_manager.add_log(task_id, line.decode().strip())
+
+                await process.wait()
+
+                if process.returncode == 0:
+                    task_manager.update_task(task_id, TaskStatus.SUCCESS, 1.0)
+                    return process
+                else:
+                    raise subprocess.CalledProcessError(process.returncode, cmd)
             except subprocess.CalledProcessError as e:
-                tui.update_task(task_id, "error")
+                task_manager.update_task(task_id, TaskStatus.ERROR)
                 if attempt < max_retries - 1:
-                    time.sleep(5)  # Wait for 5 seconds before retrying
+                    await asyncio.sleep(5)  # Wait for 5 seconds before retrying
                 else:
                     raise
 
     @staticmethod
-    def execute(cmd: List[str], retry: int, task_id: str, description: str) -> bool:
-        tui.add_task(task_id, description)
+    async def execute(cmd: List[str], retry: int, task_id: str, description: str, task_manager: TaskManager) -> bool:
+        task = Task(task_id, description)
+        task_manager.add_task(task)
         try:
-            CommandExecutor.run_with_retry(cmd, task_id, retry)
+            await CommandExecutor.run_with_retry(cmd, task_id, task_manager, retry)
             return True
         except subprocess.CalledProcessError:
             return False
 
 class DockerManager:
     @staticmethod
-    def build_image(ctx: Context, args: argparse.Namespace) -> None:
+    async def build_image(ctx: Context, args: argparse.Namespace, task_manager: TaskManager) -> None:
         cmd = [
             "docker", "build", str(Path.cwd()),
             "-t", ctx.tag,
@@ -116,21 +201,21 @@ class DockerManager:
 
         task_id = f"build_{ctx.tag}"
         description = f"Building {ctx.type} image (Java: {ctx.java}, MCDR: {ctx.mcdr})"
-        if CommandExecutor.execute(cmd, args.retry, task_id, description):
+        if await CommandExecutor.execute(cmd, args.retry, task_id, description, task_manager):
             if args.push:
-                DockerManager.push_image(ctx.tag, args.retry)
+                await DockerManager.push_image(ctx.tag, args.retry, task_manager)
 
     @staticmethod
-    def push_image(tag: str, retry: int) -> None:
+    async def push_image(tag: str, retry: int, task_manager: TaskManager) -> None:
         task_id = f"push_{tag}"
         description = f"Pushing image: {tag}"
-        CommandExecutor.execute(["docker", "push", tag], retry, task_id, description)
+        await CommandExecutor.execute(["docker", "push", tag], retry, task_id, description, task_manager)
 
     @staticmethod
-    def delete_image(tag: str, retry: int) -> None:
+    async def delete_image(tag: str, retry: int, task_manager: TaskManager) -> None:
         task_id = f"delete_{tag}"
         description = f"Deleting image: {tag}"
-        CommandExecutor.execute(["docker", "image", "rm", tag], retry, task_id, description)
+        await CommandExecutor.execute(["docker", "image", "rm", tag], retry, task_id, description, task_manager)
 
 class ContextGenerator:
     @staticmethod
@@ -145,35 +230,28 @@ class ContextGenerator:
                         tag = f"bluefunny/pterodactyl:{type}-j{java}-{mcdr}"
                         yield Context(java=java, type=type, mcdr=mcdr, tag=tag)
 
-class ParallelExecutor:
-    @staticmethod
-    def execute(func, args_list, max_workers=None):
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = [executor.submit(func, *args) for args in args_list]
-            for future in as_completed(futures):
-                try:
-                    future.result()
-                except Exception as exc:
-                    Logger.log("ERROR", f"Generated an exception: {exc}")
+async def run_tasks(func, args_list):
+    tasks = [func(*args) for args in args_list]
+    await asyncio.gather(*tasks)
 
 class CommandHandler:
     @staticmethod
-    def build(args: argparse.Namespace):
-        ParallelExecutor.execute(DockerManager.build_image, [(ctx, args) for ctx in ContextGenerator.iterate_all()])
+    async def build(args: argparse.Namespace, task_manager: TaskManager):
+        await run_tasks(DockerManager.build_image, [(ctx, args, task_manager) for ctx in ContextGenerator.iterate_all()])
 
     @staticmethod
-    def push(args: argparse.Namespace):
-        ParallelExecutor.execute(DockerManager.push_image, [(ctx.tag, args.retry) for ctx in ContextGenerator.iterate_all()])
+    async def push(args: argparse.Namespace, task_manager: TaskManager):
+        await run_tasks(DockerManager.push_image, [(ctx.tag, args.retry, task_manager) for ctx in ContextGenerator.iterate_all()])
 
     @staticmethod
-    def delete(args: argparse.Namespace):
-        ParallelExecutor.execute(DockerManager.delete_image, [(ctx.tag, args.retry) for ctx in ContextGenerator.iterate_all()])
+    async def delete(args: argparse.Namespace, task_manager: TaskManager):
+        await run_tasks(DockerManager.delete_image, [(ctx.tag, args.retry, task_manager) for ctx in ContextGenerator.iterate_all()])
 
 def signal_handler(signum, frame):
-    Logger.log("WARN", "Operation interrupted. Cleaning up...")
+    print("Operation interrupted. Cleaning up...")
     sys.exit(1)
 
-def main():
+async def main():
     parser = argparse.ArgumentParser(
         description="Docker image management script for Pterodactyl",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -202,16 +280,25 @@ Examples:
     # Set up signal handler for Ctrl+C
     signal.signal(signal.SIGINT, signal_handler)
 
+    task_manager = TaskManager()
+    tui = DockerManagerTUI(task_manager)
+
     try:
-        if args.command == "build":
-            CommandHandler.build(args)
-        elif args.command == "push":
-            CommandHandler.push(args)
-        elif args.command == "delete":
-            CommandHandler.delete(args)
+        async def run_command():
+            if args.command == "build":
+                await CommandHandler.build(args, task_manager)
+            elif args.command == "push":
+                await CommandHandler.push(args, task_manager)
+            elif args.command == "delete":
+                await CommandHandler.delete(args, task_manager)
+
+        asyncio.create_task(run_command())
+        asyncio.create_task(tui.update_ui())
+        await tui.run_async()
+
     except Exception as e:
-        Logger.log("ERROR", f"An unexpected error occurred: {str(e)}")
+        print(f"An unexpected error occurred: {str(e)}")
         sys.exit(1)
 
 if __name__ == "__main__":
-    main()
+    asyncio.run(main())
