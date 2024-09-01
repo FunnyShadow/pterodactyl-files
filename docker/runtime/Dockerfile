@@ -7,30 +7,79 @@ ARG REGION
 COPY debian.${REGION}.sources /etc/apt/sources.list.d/debian.sources
 
 # Initialize
-RUN \
+RUN set -ex; \
     apt-get update; \
-    apt-get install -y -f curl ca-certificates openssl git tar sqlite3 fontconfig tzdata iproute2 gettext-base wget libargon2-1;
+    apt-get install -y --no-install-recommends \
+        curl \
+        ca-certificates \
+        openssl \
+        git \
+        tar \
+        sqlite3 \
+        fontconfig \
+        tzdata \
+        iproute2 \
+        gettext-base \
+        wget \
+        libargon2-1; \
+    rm -rf /var/lib/apt/lists/*
 
 # Install Python 3.12 for MCDR
-ARG TYPE, REGION
+ARG TYPE
+ARG REGION
 ARG PYTHON=3.12.3
-RUN if [ "${TYPE}" = "mcdr" ]; then \
-        apt-get install -y build-essential libncursesw5-dev libssl-dev libsqlite3-dev tk-dev libgdbm-dev libc6-dev libbz2-dev libffi-dev zlib1g-dev; \
+
+RUN set -ex; \
+    if [ "${TYPE}" = "mcdr" ]; then \
+        apt-get update; \
+        apt-get install -y --no-install-recommends \
+            build-essential \
+            libncursesw5-dev \
+            libssl-dev \
+            libsqlite3-dev \
+            tk-dev \
+            libgdbm-dev \
+            libc6-dev \
+            libbz2-dev \
+            libffi-dev \
+            zlib1g-dev; \
+        \
         cd /tmp; \
-        [ ${REGION} =="china" ] && wget https://mirror.bjtu.edu.cn/python/${PYTHON}/Python-${PYTHON}.tgz; \
-        [ ${REGION} =="global" ] && wget https://www.python.org/ftp/python/${PYTHON}/Python-${PYTHON}.tgz; \
-        tar -xzvf Python-${PYTHON}.tgz; \
+        if [ "${REGION}" = "china" ]; then \
+            wget https://mirror.bjtu.edu.cn/python/${PYTHON}/Python-${PYTHON}.tgz; \
+        else \
+            wget https://www.python.org/ftp/python/${PYTHON}/Python-${PYTHON}.tgz; \
+        fi; \
+        \
+        tar -xzf Python-${PYTHON}.tgz; \
         cd Python-${PYTHON}; \
         ./configure --enable-optimizations; \
-        make -j 8; \
+        make -j $(nproc); \
         make install; \
+        cd ..; \
+        rm -rf Python-${PYTHON} Python-${PYTHON}.tgz; \
+        \
+        apt-get remove -y \
+            build-essential \
+            libncursesw5-dev \
+            libssl-dev \
+            libsqlite3-dev \
+            tk-dev \
+            libgdbm-dev \
+            libc6-dev \
+            libbz2-dev \
+            libffi-dev \
+            zlib1g-dev; \
+        apt-get autoremove -y; \
+        rm -rf /var/lib/apt/lists/*; \
     fi
 
 # Install MCDR and requirements
 COPY requirements.txt /requirements.txt 
-ARG TYPE
 ARG MCDR_REQUIREMENT=mcdreforged
-RUN if [ "${TYPE}" = "mcdr" ]; then \
+
+RUN set -ex; \
+    if [ "${TYPE}" = "mcdr" ]; then \
         if [ "${REGION}" = "china" ]; then \
             python3 -m pip install -U pip -i https://mirrors.cernet.edu.cn/pypi/web/simple; \
             python3 -m pip install ${MCDR_REQUIREMENT} -i https://mirrors.cernet.edu.cn/pypi/web/simple; \
@@ -39,27 +88,17 @@ RUN if [ "${TYPE}" = "mcdr" ]; then \
             python3 -m pip install -U pip; \
             python3 -m pip install ${MCDR_REQUIREMENT}; \
             python3 -m pip install -r /requirements.txt; \
-        fi \
+        fi; \
+        python3 -m pip cache purge; \
+        rm -f /requirements.txt; \
     fi
 
-# Clean up
-ARG TYPE
-RUN if [ "${TYPE}" = "mcdr" ]; then \
-        cd /tmp; \
-        python3.12 -m pip cache purge; \
-        rm -rf /requirements.txt; \
-        rm -rf /tmp/Python-${PYTHON}; \
-        rm -rf /tmp/Python-${PYTHON}.tgz; \
-        apt-get remove -y build-essential libncursesw5-dev libssl-dev libsqlite3-dev tk-dev libgdbm-dev libc6-dev libbz2-dev libffi-dev zlib1g-dev; \
-    fi
-RUN \
-    apt-get autoremove -y; \
-    apt-get clean;
+RUN useradd -d /home/container -m container
 
-RUN useradd -d /home/container -m container;
 USER container
 ENV USER=container HOME=/home/container
 
 WORKDIR /home/container
 COPY ./entrypoint.sh /
+
 CMD ["/bin/bash", "/entrypoint.sh"]

@@ -1,10 +1,14 @@
 #!/usr/bin/env python3
 import argparse
-import os
-import subprocess
+import logging
 import sys
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from functools import partial
+from pathlib import Path
+from subprocess import CalledProcessError, CompletedProcess, run
 from typing import Iterator, NamedTuple
-from colorama import init, Fore, Style
+
+from colorama import init, Fore
 
 # Initialize colorama for cross-platform colored output
 init()
@@ -22,75 +26,77 @@ def iterate_all() -> Iterator[Context]:
                 tag = f"bluefunny/pterodactyl:{type}-j{java}"
                 yield Context(java=java, type=type, mcdr="", tag=tag)
             if type == "mcdr":
-                for mcdr in ["latest", "2.12", "2.11", "2.10"]:
+                for mcdr in ["2.13", "2.12", "2.11", "2.10"]:
                     tag = f"bluefunny/pterodactyl:{type}-j{java}-{mcdr}"
                     yield Context(java=java, type=type, mcdr=mcdr, tag=tag)
 
-def print_info(message: str):
-    print(f"{Fore.CYAN}{message}{Style.RESET_ALL}")
+def setup_logger():
+    logger = logging.getLogger(__name__)
+    logger.setLevel(logging.INFO)
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter('%(message)s'))
+    logger.addHandler(handler)
+    return logger
 
-def print_success(message: str):
-    print(f"{Fore.GREEN}{message}{Style.RESET_ALL}")
+logger = setup_logger()
 
-def print_error(message: str):
-    print(f"{Fore.RED}{message}{Style.RESET_ALL}", file=sys.stderr)
-
-def run_command(cmd: list[str], check: bool = True) -> subprocess.CompletedProcess:
+def run_command(cmd: list[str], check: bool = True) -> CompletedProcess:
     try:
-        return subprocess.run(cmd, check=check, capture_output=True, text=True)
-    except subprocess.CalledProcessError as e:
-        print_error(f"Command failed with exit code {e.returncode}")
-        print_error(f"Command: {' '.join(cmd)}")
+        return run(cmd, check=check, capture_output=True, text=True)
+    except CalledProcessError as e:
+        logger.error(f"{Fore.RED}Command failed with exit code {e.returncode}")
+        logger.error(f"Command: {' '.join(cmd)}")
         if e.stdout:
-            print_error(f"stdout:\n{e.stdout}")
+            logger.error(f"stdout:\n{e.stdout}")
         if e.stderr:
-            print_error(f"stderr:\n{e.stderr}")
+            logger.error(f"stderr:\n{e.stderr}")
         raise
 
-def cmd_build(args: argparse.Namespace):
-    for ctx in iterate_all():
-        print_info(f"> Building {ctx.type} image...")
-        print_info(f"> Java: {ctx.java}")
-        if ctx.type == "mcdr":
-            print_info(f"> MCDR: {ctx.mcdr}")
+def build_image(ctx: Context, args: argparse.Namespace):
+    logger.info(f"{Fore.CYAN}> Building {ctx.type} image...")
+    logger.info(f"> Java: {ctx.java}")
+    if ctx.type == "mcdr":
+        logger.info(f"> MCDR: {ctx.mcdr}")
 
-        cmd = [
-            "docker", "build", os.getcwd(),
-            "-t", ctx.tag,
-            "--build-arg", f"TYPE={ctx.type}",
-            "--build-arg", f"JAVA={ctx.java}",
-            "--build-arg", f"MCDR={ctx.mcdr}",
-        ]
+    cmd = [
+        "docker", "build", str(Path.cwd()),
+        "-t", ctx.tag,
+        "--build-arg", f"TYPE={ctx.type}",
+        "--build-arg", f"JAVA={ctx.java}",
+        "--build-arg", f"MCDR={ctx.mcdr}",
+        "--build-arg", f"REGION={args.region}",
+    ]
 
-        if args.region:
-            cmd.extend(["--build-arg", f"REGION={args.region}"])
+    if args.http_proxy:
+        cmd.extend([
+            "--build-arg", f"http_proxy={args.http_proxy}",
+            "--build-arg", f"https_proxy={args.http_proxy}",
+        ])
 
-        if args.http_proxy:
-            cmd.extend([
-                "--build-arg", f"http_proxy={args.http_proxy}",
-                "--build-arg", f"https_proxy={args.http_proxy}",
-            ])
+    run_command(cmd)
+    logger.info(f"{Fore.GREEN}Successfully built image: {ctx.tag}")
 
-        run_command(cmd)
-        print_success(f"Successfully built image: {ctx.tag}")
+    if args.push:
+        push_image(ctx.tag)
 
-        if args.push:
-            cmd_push_single(ctx.tag)
-
-def cmd_push(args: argparse.Namespace):
-    for ctx in iterate_all():
-        cmd_push_single(ctx.tag)
-
-def cmd_push_single(tag: str):
-    print_info(f"Pushing image: {tag}")
+def push_image(tag: str):
+    logger.info(f"{Fore.CYAN}Pushing image: {tag}")
     run_command(["docker", "push", tag])
-    print_success(f"Successfully pushed image: {tag}")
+    logger.info(f"{Fore.GREEN}Successfully pushed image: {tag}")
 
-def cmd_delete(args: argparse.Namespace):
-    for ctx in iterate_all():
-        print_info(f"Deleting image: {ctx.tag}")
-        run_command(["docker", "image", "rm", ctx.tag])
-        print_success(f"Successfully deleted image: {ctx.tag}")
+def delete_image(tag: str):
+    logger.info(f"{Fore.CYAN}Deleting image: {tag}")
+    run_command(["docker", "image", "rm", tag])
+    logger.info(f"{Fore.GREEN}Successfully deleted image: {tag}")
+
+def parallel_execute(func, iterable, max_workers=4):
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(func, item) for item in iterable]
+        for future in as_completed(futures):
+            try:
+                future.result()
+            except CalledProcessError:
+                logger.error(f"{Fore.RED}An error occurred during execution")
 
 def main():
     parser = argparse.ArgumentParser(
@@ -98,8 +104,8 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  %(prog)s build -r china
-  %(prog)s build -r global --http-proxy http://proxy.example.com:8080
+  %(prog)s build china
+  %(prog)s build global --http-proxy http://proxy.example.com:8080
   %(prog)s push
   %(prog)s delete
         """
@@ -112,9 +118,9 @@ Examples:
     )
 
     parser_build = subparsers.add_parser("build", help="Build all images")
+    parser_build.add_argument("region", choices=["china", "global"], help="Specify the region for image source")
     parser_build.add_argument("-p", "--push", action="store_true", help="Push after build")
     parser_build.add_argument("--http-proxy", help="Set the URL of HTTP proxy to be used in build")
-    parser_build.add_argument("-r", "--region", choices=["china", "global"], required=True, help="Specify the region for image source")
 
     subparsers.add_parser("push", help="Push all images")
     subparsers.add_parser("delete", help="Delete all images")
@@ -123,15 +129,13 @@ Examples:
 
     try:
         if args.command == "build":
-            cmd_build(args)
+            parallel_execute(partial(build_image, args=args), iterate_all())
         elif args.command == "push":
-            cmd_push(args)
+            parallel_execute(push_image, (ctx.tag for ctx in iterate_all()))
         elif args.command == "delete":
-            cmd_delete(args)
-    except subprocess.CalledProcessError:
-        sys.exit(1)
+            parallel_execute(delete_image, (ctx.tag for ctx in iterate_all()))
     except KeyboardInterrupt:
-        print_error("\nOperation canceled by user")
+        logger.error(f"{Fore.RED}\nOperation canceled by user")
         sys.exit(1)
 
 if __name__ == "__main__":
