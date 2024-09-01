@@ -59,6 +59,8 @@ class TaskManager:
             self.tasks[task_id].add_log(message)
 
 class TaskWidget(Static):
+    task = reactive(Task)
+
     def __init__(self, task: Task):
         super().__init__()
         self.task = task
