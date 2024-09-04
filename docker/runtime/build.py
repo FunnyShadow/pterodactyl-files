@@ -6,8 +6,12 @@ import shutil
 import argparse
 import signal
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from tqdm import tqdm
+from rich.console import Console
+from rich.live import Live
+from rich.panel import Panel
+from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn
 
 class GracefulKiller:
     kill_now = False
@@ -36,6 +40,7 @@ class DockerImageBuilder:
         self.region = self.config.get('region', 'global')
         self.upload_config = self.config.get('upload', {})
         self.killer = GracefulKiller()
+        self.console = Console()
 
     def load_config(self):
         with open(self.config_path, 'r') as f:
@@ -56,79 +61,77 @@ class DockerImageBuilder:
             build_args = build_config.get('build_args', {})
             build_args['REGION'] = build_config.get('region', self.region)
 
-            image, logs = self.client.images.build(
+            image = None
+            for line in self.client.api.build(
                 path=context_path,
                 dockerfile=os.path.basename(self.dockerfile_path),
                 tag=build_config['tag'],
                 buildargs=build_args,
-                rm=True
-            )
+                rm=True,
+                decode=True
+            ):
+                if 'stream' in line:
+                    yield line['stream'].strip()
+                elif 'error' in line:
+                    raise Exception(line['error'])
+
+            image = self.client.images.get(build_config['tag'])
             return image
         finally:
             shutil.rmtree(context_path)
 
-    def get_registry_url(self):
-        registry_type = self.upload_config.get('registry_type', 'custom').lower()
-        if registry_type == 'custom':
-            return self.upload_config.get('registry', '')
-        elif registry_type in self.REGISTRY_PRESETS:
-            return self.REGISTRY_PRESETS[registry_type]
-        else:
-            tqdm.write(f"Unknown registry type: {registry_type}. Using custom registry.")
-            return self.upload_config.get('registry', '')
-
-    def upload_image(self, image, build_config):
-        if not self.upload_config.get('enabled', False):
-            return
-
-        registry_url = self.get_registry_url()
-        username = self.upload_config.get('username')
-        password = self.upload_config.get('password')
-
-        if username and password:
-            self.client.login(username=username, password=password, registry=registry_url)
-            
-            if registry_url:
-                tag = f"{registry_url}/{build_config['tag']}"
-            else:
-                tag = build_config['tag']  # For Docker Hub
-            
-            image.tag(tag)
-            push_logs = self.client.images.push(tag)
-            tqdm.write(f"Uploaded image {tag}")
-        else:
-            tqdm.write("Upload configuration is incomplete. Skipping upload.")
-
-    def build_and_upload(self, build_config):
+    def build_and_upload(self, build_config, progress):
+        task = progress.add_task(f"[cyan]Building {build_config['tag']}", total=100)
         try:
-            image = self.build_image(build_config)
-            tqdm.write(f"Built image {build_config['tag']} with ID: {image.id}")
-            self.upload_image(image, build_config)
-            return image.id
+            for output in self.build_image(build_config):
+                progress.update(task, advance=1, description=f"[cyan]Building {build_config['tag']}: {output}")
+                if self.killer.kill_now:
+                    return None
+
+            progress.update(task, description=f"[green]Built {build_config['tag']}")
+
+            if self.upload_config.get('enabled', False):
+                progress.update(task, description=f"[cyan]Uploading {build_config['tag']}")
+                self.upload_image(self.client.images.get(build_config['tag']), build_config)
+                progress.update(task, description=f"[green]Uploaded {build_config['tag']}")
+
+            progress.update(task, completed=100)
+            return build_config['tag']
         except Exception as e:
-            tqdm.write(f"Error building/uploading image {build_config['tag']}: {str(e)}")
+            progress.update(task, description=f"[red]Error: {build_config['tag']} - {str(e)}")
             return None
 
     def build_all(self):
         total_builds = len(self.config['builds'])
         completed_builds = 0
 
-        with ThreadPoolExecutor(max_workers=self.config.get('max_concurrent_builds', 3)) as executor:
-            futures = {executor.submit(self.build_and_upload, build_config): build_config for build_config in self.config['builds']}
-            
-            with tqdm(total=total_builds, desc="Overall Progress", position=0) as pbar:
+        progress = Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            TimeElapsedColumn()
+        )
+
+        with Live(Panel(progress), refresh_per_second=10, console=self.console) as live:
+            with ThreadPoolExecutor(max_workers=self.config.get('max_concurrent_builds', 3)) as executor:
+                futures = {executor.submit(self.build_and_upload, build_config, progress): build_config for build_config in self.config['builds']}
+                
+                overall_task = progress.add_task(f"[bold blue]Overall Progress", total=total_builds)
+                
                 for future in as_completed(futures):
                     if self.killer.kill_now:
-                        print("\nReceived interrupt signal. Stopping builds...")
+                        self.console.print("\n[yellow]Received interrupt signal. Stopping builds...[/yellow]")
                         executor.shutdown(wait=False)
                         return
 
                     build_config = futures[future]
-                    future.result()  # This will raise any exceptions that occurred
+                    result = future.result()
                     completed_builds += 1
-                    pbar.update(1)
+                    progress.update(overall_task, advance=1)
 
-        print(f"Completed {completed_builds}/{total_builds} builds.")
+        self.console.print(f"[bold green]Completed {completed_builds}/{total_builds} builds.[/bold green]")
+
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Docker Image Builder and Uploader")
