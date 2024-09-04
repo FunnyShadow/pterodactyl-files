@@ -39,18 +39,18 @@ class DockerImageBuilder:
         self.dockerfile_path = dockerfile_path
         self.config_path = config_path
         self.client = docker.from_env()
-        self.config = self.load_config()
+        self.config = self._load_config()
         self.default_resources_path = self.config.get('default_resources_path', 'resources')
         self.region = self.config.get('region', 'global')
         self.upload_config = self.config.get('upload', {})
         self.killer = GracefulKiller()
         self.console = Console()
 
-    def load_config(self):
+    def _load_config(self):
         with open(self.config_path, 'r') as f:
             return yaml.safe_load(f)
 
-    def prepare_build_context(self, build_config):
+    def _prepare_build_context(self, build_config):
         temp_dir = tempfile.mkdtemp()
         shutil.copy2(self.dockerfile_path, temp_dir)
         
@@ -60,15 +60,15 @@ class DockerImageBuilder:
         
         return temp_dir
 
-    def parse_progress(self, line):
+    def _parse_progress(self, line):
         progress_pattern = r'(\d+(?:\.\d+)?[KMG]?B?)/(\d+(?:\.\d+)?[KMG]?B?)'
         match = re.search(progress_pattern, line)
         if match:
             current, total = match.groups()
-            return self.convert_size_to_bytes(current), self.convert_size_to_bytes(total)
+            return self._convert_size_to_bytes(current), self._convert_size_to_bytes(total)
         return None, None
 
-    def convert_size_to_bytes(self, size_str):
+    def _convert_size_to_bytes(self, size_str):
         units = {'K': 1024, 'M': 1024**2, 'G': 1024**3}
         if size_str[-1] in units:
             return int(float(size_str[:-1]) * units[size_str[-1]])
@@ -78,7 +78,7 @@ class DockerImageBuilder:
             return int(float(size_str))
 
     def build_image(self, build_config, progress):
-        context_path = self.prepare_build_context(build_config)
+        context_path = self._prepare_build_context(build_config)
         task_id = progress.add_task(f"[cyan]Building {build_config['tag']}", total=100)
         layer_tasks = {}
         
@@ -100,19 +100,7 @@ class DockerImageBuilder:
                 if 'stream' in line:
                     progress.update(task_id, description=f"[cyan]Building {build_config['tag']}: {line['stream'].strip()}")
                 elif 'status' in line:
-                    if 'Pulling from' in line['status']:
-                        layer_id = line['status'].split()[-1]
-                        layer_tasks[layer_id] = progress.add_task(f"[magenta]Pulling {layer_id}", total=100)
-                    elif 'Pull complete' in line['status']:
-                        layer_id = line['status'].split()[0]
-                        if layer_id in layer_tasks:
-                            progress.update(layer_tasks[layer_id], completed=100)
-                    if 'progress' in line:
-                        layer_id = line['id']
-                        if layer_id in layer_tasks:
-                            current, total = self.parse_progress(line['progress'])
-                            if current is not None and total is not None:
-                                progress.update(layer_tasks[layer_id], completed=current, total=total)
+                    self._update_layer_progress(line, layer_tasks, progress)
                 elif 'error' in line:
                     raise Exception(line['error'])
 
@@ -125,6 +113,21 @@ class DockerImageBuilder:
             return None
         finally:
             shutil.rmtree(context_path)
+
+    def _update_layer_progress(self, line, layer_tasks, progress):
+        if 'Pulling from' in line['status']:
+            layer_id = line['status'].split()[-1]
+            layer_tasks[layer_id] = progress.add_task(f"[magenta]Pulling {layer_id}", total=100)
+        elif 'Pull complete' in line['status']:
+            layer_id = line['status'].split()[0]
+            if layer_id in layer_tasks:
+                progress.update(layer_tasks[layer_id], completed=100)
+        if 'progress' in line:
+            layer_id = line['id']
+            if layer_id in layer_tasks:
+                current, total = self._parse_progress(line['progress'])
+                if current is not None and total is not None:
+                    progress.update(layer_tasks[layer_id], completed=current, total=total)
 
     def build_all(self):
         progress = Progress(
@@ -153,28 +156,6 @@ class DockerImageBuilder:
             self.push_images()
 
     def push_images(self):
-        progress = Progress(
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-            TimeElapsedColumn()
-        )
-
-        with Live(Panel(progress), refresh_per_second=10, console=self.console) as live:
-            for build_config in self.config['builds']:
-                tag = build_config['tag']
-                task_id = progress.add_task(f"[cyan]Uploading {tag}", total=100)
-                try:
-                    self.upload_image(self.client.images.get(tag), build_config)
-                    progress.update(task_id, completed=100, description=f"[green]Uploaded {tag}")
-                except docker.errors.ImageNotFound:
-                    progress.update(task_id, description=f"[red]Image not found: {tag}")
-                except Exception as e:
-                    progress.update(task_id, description=f"[red]Error uploading {tag}: {str(e)}")
-
-        self.console.print("[bold green]Upload process completed.[/bold green]")
-
-    def push_images(self):
         if not self.upload_config.get('enabled', False):
             self.console.print("[yellow]Upload is not enabled in the configuration.[/yellow]")
             return
@@ -191,7 +172,7 @@ class DockerImageBuilder:
                 tag = build_config['tag']
                 task_id = progress.add_task(f"[cyan]Uploading {tag}", total=100)
                 try:
-                    self.upload_image(self.client.images.get(tag), build_config)
+                    self._upload_image(tag, build_config, progress, task_id)
                     progress.update(task_id, completed=100, description=f"[green]Uploaded {tag}")
                 except docker.errors.ImageNotFound:
                     progress.update(task_id, description=f"[red]Image not found: {tag}")
@@ -200,23 +181,40 @@ class DockerImageBuilder:
 
         self.console.print("[bold green]Upload process completed.[/bold green]")
 
+    def _upload_image(self, tag, build_config, progress, task_id):
+        registry = self.upload_config.get('registry', 'dockerhub')
+        registry_url = self.REGISTRY_PRESETS.get(registry, registry)
+        
+        if registry_url:
+            new_tag = f"{registry_url}/{tag}"
+            self.client.images.get(tag).tag(new_tag)
+            tag = new_tag
+
+        for line in self.client.images.push(tag, stream=True, decode=True):
+            if 'progress' in line:
+                current, total = self._parse_progress(line['progress'])
+                if current is not None and total is not None:
+                    progress.update(task_id, completed=current, total=total)
+            elif 'status' in line:
+                progress.update(task_id, description=f"[cyan]Uploading {tag}: {line['status']}")
+
     def delete_images(self):
-            deleted_images = []
-            for build_config in self.config['builds']:
-                tag = build_config['tag']
-                try:
-                    self.client.images.remove(tag, force=True)
-                    deleted_images.append(tag)
-                    self.console.print(f"[green]Successfully deleted image: {tag}[/green]")
-                except docker.errors.ImageNotFound:
-                    self.console.print(f"[yellow]Image not found: {tag}[/yellow]")
-                except Exception as e:
-                    self.console.print(f"[red]Error deleting image {tag}: {str(e)}[/red]")
-            
-            if deleted_images:
-                self.console.print(f"[bold green]Deleted {len(deleted_images)} image(s).[/bold green]")
-            else:
-                self.console.print("[yellow]No images were deleted.[/yellow]")
+        deleted_images = []
+        for build_config in self.config['builds']:
+            tag = build_config['tag']
+            try:
+                self.client.images.remove(tag, force=True)
+                deleted_images.append(tag)
+                self.console.print(f"[green]Successfully deleted image: {tag}[/green]")
+            except docker.errors.ImageNotFound:
+                self.console.print(f"[yellow]Image not found: {tag}[/yellow]")
+            except Exception as e:
+                self.console.print(f"[red]Error deleting image {tag}: {str(e)}[/red]")
+        
+        if deleted_images:
+            self.console.print(f"[bold green]Deleted {len(deleted_images)} image(s).[/bold green]")
+        else:
+            self.console.print("[yellow]No images were deleted.[/yellow]")
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Build, upload, push, or delete Docker images based on configuration.")
@@ -225,14 +223,9 @@ def parse_arguments():
     
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
     
-    # Build command
-    build_parser = subparsers.add_parser('build', help='Build and optionally upload Docker images')
-    
-    # Push command
-    push_parser = subparsers.add_parser('push', help='Push built Docker images to registry')
-    
-    # Delete command
-    delete_parser = subparsers.add_parser('delete', help='Delete built Docker images')
+    subparsers.add_parser('build', help='Build and optionally upload Docker images')
+    subparsers.add_parser('push', help='Push built Docker images to registry')
+    subparsers.add_parser('delete', help='Delete built Docker images')
     
     return parser.parse_args()
 
