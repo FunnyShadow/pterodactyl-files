@@ -1,5 +1,6 @@
 region: "global"
 build_dir: "build"
+max_parallel_tasks: 5
 
 upload:
   auto_push: true
