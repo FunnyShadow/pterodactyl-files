@@ -73,7 +73,8 @@ def build_image(client: docker.DockerClient, build_config: Dict, global_config: 
     print_log("SUCCESS", f"Successfully built image: {tag}")
     return image
 
-def push_image(client: docker.DockerClient, tag: str):
+def push_image(client: docker.DockerClient, tag: str, config: Dict):
+    docker_login(client, config)  # 只在推送时登录
     print_log("INFO", f"Pushing image: {tag}")
     for line in client.images.push(tag, stream=True, decode=True):
         if 'error' in line:
@@ -92,7 +93,7 @@ def process_images(client: docker.DockerClient, config: Dict, operation: Callabl
     for build in config['builds']:
         retry_operation(operation, client, build, config, args.build_dir, retry=args.retry)
         if operation == build_image and config['upload']['auto_push']:
-            retry_operation(push_image, client, build['tag'], retry=args.retry)
+            retry_operation(push_image, client, build['tag'], config, retry=args.retry)
 
 def main():
     parser = argparse.ArgumentParser(
@@ -127,12 +128,10 @@ def main():
 
     client = docker.from_env()
 
-    docker_login(client, config)
-
     try:
         operations = {
             "build": build_image,
-            "push": lambda client, build, _, cli_build_dir: push_image(client, build['tag']),
+            "push": lambda client, build, config, cli_build_dir: push_image(client, build['tag'], config),
             "delete": lambda client, build, _, cli_build_dir: delete_image(client, build['tag'])
         }
         process_images(client, config, operations[args.command], args)
