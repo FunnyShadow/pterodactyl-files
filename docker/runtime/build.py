@@ -105,17 +105,6 @@ class DockerImageBuilder:
         finally:
             shutil.rmtree(context_path)
 
-    def upload_image(self, image, build_config):
-        registry_type = self.upload_config.get('registry_type', 'dockerhub')
-        registry = self.REGISTRY_PRESETS.get(registry_type, '')
-        
-        if registry:
-            repository = f"{registry}/{build_config['tag']}"
-        else:
-            repository = build_config['tag']
-
-        self.client.images.push(repository)
-
     def build_and_upload(self, build_config, progress):
         task_id = progress.add_task(f"[cyan]Building {build_config['tag']}", total=100)
         layer_tasks = {}
@@ -179,6 +168,43 @@ class DockerImageBuilder:
 
         self.console.print("[bold green]All builds completed.[/bold green]")
 
+    def upload_image(self, image, build_config):
+        registry_type = self.upload_config.get('registry_type', 'dockerhub')
+        registry = self.REGISTRY_PRESETS.get(registry_type, '')
+        
+        if registry:
+            repository = f"{registry}/{build_config['tag']}"
+        else:
+            repository = build_config['tag']
+
+        self.client.images.push(repository)
+
+    def push_images(self):
+        if not self.upload_config.get('enabled', False):
+            self.console.print("[yellow]Upload is not enabled in the configuration.[/yellow]")
+            return
+
+        progress = Progress(
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            TimeElapsedColumn()
+        )
+
+        with Live(Panel(progress), refresh_per_second=10, console=self.console) as live:
+            for build_config in self.config['builds']:
+                tag = build_config['tag']
+                task_id = progress.add_task(f"[cyan]Uploading {tag}", total=100)
+                try:
+                    self.upload_image(self.client.images.get(tag), build_config)
+                    progress.update(task_id, completed=100, description=f"[green]Uploaded {tag}")
+                except docker.errors.ImageNotFound:
+                    progress.update(task_id, description=f"[red]Image not found: {tag}")
+                except Exception as e:
+                    progress.update(task_id, description=f"[red]Error uploading {tag}: {str(e)}")
+
+        self.console.print("[bold green]Upload process completed.[/bold green]")
+
     def delete_images(self):
             deleted_images = []
             for build_config in self.config['builds']:
@@ -198,7 +224,7 @@ class DockerImageBuilder:
                 self.console.print("[yellow]No images were deleted.[/yellow]")
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Build, upload, or delete Docker images based on configuration.")
+    parser = argparse.ArgumentParser(description="Build, upload, push, or delete Docker images based on configuration.")
     parser.add_argument('-d', '--dockerfile', default='Dockerfile', help='Path to the Dockerfile')
     parser.add_argument('-c', '--config', default='config.yaml', help='Path to the configuration file')
     
@@ -206,6 +232,9 @@ def parse_arguments():
     
     # Build command
     build_parser = subparsers.add_parser('build', help='Build and optionally upload Docker images')
+    
+    # Push command
+    push_parser = subparsers.add_parser('push', help='Push built Docker images to registry')
     
     # Delete command
     delete_parser = subparsers.add_parser('delete', help='Delete built Docker images')
@@ -219,10 +248,12 @@ def main():
         
         if args.command == 'build':
             builder.build_all()
+        elif args.command == 'push':
+            builder.push_images()
         elif args.command == 'delete':
             builder.delete_images()
         else:
-            builder.console.print("[yellow]No command specified. Use 'build' or 'delete'.[/yellow]")
+            builder.console.print("[yellow]No command specified. Use 'build', 'push', or 'delete'.[/yellow]")
     
     except Exception as e:
         console = Console()
