@@ -51,8 +51,12 @@ class DockerImageBuilder:
         self.console = Console()
 
     def _load_config(self):
-        with open(self.config_path, "r") as f:
-            return yaml.safe_load(f)
+        try:
+            with open(self.config_path, "r") as f:
+                return yaml.safe_load(f)
+        except Exception as e:
+            self.console.print(f"[bold red]Error loading configuration file:[/bold red] {str(e)}")
+            sys.exit(1)
 
     def _prepare_build_context(self, build_config):
         temp_dir = tempfile.mkdtemp()
@@ -95,26 +99,30 @@ class DockerImageBuilder:
         self.console = Console()
         build_tasks = []
 
-        with Live(self.generate_output(build_tasks), refresh_per_second=10, console=self.console) as live:
-            with ThreadPoolExecutor(max_workers=self.config.get("max_concurrent_builds", 3)) as executor:
-                futures = {executor.submit(self.build_image, build_config): build_config for build_config in self.config["builds"]}
+        try:
+            with Live(self.generate_output(build_tasks), refresh_per_second=10, console=self.console) as live:
+                with ThreadPoolExecutor(max_workers=self.config.get("max_concurrent_builds", 3)) as executor:
+                    futures = {executor.submit(self.build_image, build_config): build_config for build_config in self.config["builds"]}
 
-                for future in as_completed(futures):
-                    if self.killer.kill_now:
-                        self.console.print("\n[yellow]Received interrupt signal. Stopping builds...[/yellow]")
-                        executor.shutdown(wait=False)
-                        return
+                    for future in as_completed(futures):
+                        if self.killer.kill_now:
+                            self.console.print("\n[yellow]Received interrupt signal. Stopping builds...[/yellow]")
+                            executor.shutdown(wait=False)
+                            return
 
-                    build_config = futures[future]
-                    result = future.result()
-                    if result:
-                        build_tasks.append(result)
-                    live.update(self.generate_output(build_tasks))
+                        build_config = futures[future]
+                        result = future.result()
+                        if result:
+                            build_tasks.append(result)
+                        live.update(self.generate_output(build_tasks))
 
-        self.console.print("[bold green]All builds completed.[/bold green]")
+            self.console.print("[bold green]All builds completed.[/bold green]")
 
-        if self.upload_config.get("auto_push", False):
-            self.push_images()
+            if self.upload_config.get("auto_push", False):
+                self.push_images()
+        except Exception as e:
+            self.console.print(f"[bold red]An error occurred during build process:[/bold red] {str(e)}")
+            sys.exit(1)
 
     def build_image(self, build_config):
         context_path = self._prepare_build_context(build_config)
@@ -161,32 +169,36 @@ class DockerImageBuilder:
 
         upload_tasks = []
 
-        with Live(self.generate_upload_output(upload_tasks), refresh_per_second=10, console=self.console) as live:
-            for build_config in self.config["builds"]:
-                tag = build_config["tag"]
-                task = {
-                    'tag': tag,
-                    'status': 'uploading',
-                    'start_time': time.time(),
-                    'logs': []
-                }
-                upload_tasks.append(task)
-                live.update(self.generate_upload_output(upload_tasks))
+        try:
+            with Live(self.generate_upload_output(upload_tasks), refresh_per_second=10, console=self.console) as live:
+                for build_config in self.config["builds"]:
+                    tag = build_config["tag"]
+                    task = {
+                        'tag': tag,
+                        'status': 'uploading',
+                        'start_time': time.time(),
+                        'logs': []
+                    }
+                    upload_tasks.append(task)
+                    live.update(self.generate_upload_output(upload_tasks))
 
-                try:
-                    self._upload_image(tag, build_config, task)
-                    task['status'] = 'success'
-                except docker.errors.ImageNotFound:
-                    task['status'] = 'error'
-                    task['logs'].append(f"Image not found: {tag}")
-                except Exception as e:
-                    task['status'] = 'error'
-                    task['logs'].append(f"Error uploading {tag}: {str(e)}")
+                    try:
+                        self._upload_image(tag, build_config, task)
+                        task['status'] = 'success'
+                    except docker.errors.ImageNotFound:
+                        task['status'] = 'error'
+                        task['logs'].append(f"Image not found: {tag}")
+                    except Exception as e:
+                        task['status'] = 'error'
+                        task['logs'].append(f"Error uploading {tag}: {str(e)}")
 
-                task['end_time'] = time.time()
-                live.update(self.generate_upload_output(upload_tasks))
+                    task['end_time'] = time.time()
+                    live.update(self.generate_upload_output(upload_tasks))
 
-        self.console.print("[bold green]Upload process completed.[/bold green]")
+            self.console.print("[bold green]Upload process completed.[/bold green]")
+        except Exception as e:
+            self.console.print(f"[bold red]An error occurred during push process:[/bold red] {str(e)}")
+            sys.exit(1)
 
     def _upload_image(self, tag, build_config, task):
         repository = self.upload_config.get("repository", "")
@@ -203,21 +215,25 @@ class DockerImageBuilder:
 
     def delete_images(self):
         deleted_images = []
-        for build_config in self.config["builds"]:
-            tag = build_config["tag"]
-            try:
-                self.client.images.remove(tag, force=True)
-                deleted_images.append(tag)
-                self.console.print(f"[green]Successfully deleted image: {tag}[/green]")
-            except docker.errors.ImageNotFound:
-                self.console.print(f"[yellow]Image not found: {tag}[/yellow]")
-            except Exception as e:
-                self.console.print(f"[red]Error deleting image {tag}: {str(e)}[/red]")
+        try:
+            for build_config in self.config["builds"]:
+                tag = build_config["tag"]
+                try:
+                    self.client.images.remove(tag, force=True)
+                    deleted_images.append(tag)
+                    self.console.print(f"[green]Successfully deleted image: {tag}[/green]")
+                except docker.errors.ImageNotFound:
+                    self.console.print(f"[yellow]Image not found: {tag}[/yellow]")
+                except Exception as e:
+                    self.console.print(f"[red]Error deleting image {tag}: {str(e)}[/red]")
 
-        if deleted_images:
-            self.console.print(f"[bold green]Deleted {len(deleted_images)} image(s).[/bold green]")
-        else:
-            self.console.print("[yellow]No images were deleted.[/yellow]")
+            if deleted_images:
+                self.console.print(f"[bold green]Deleted {len(deleted_images)} image(s).[/bold green]")
+            else:
+                self.console.print("[yellow]No images were deleted.[/yellow]")
+        except Exception as e:
+            self.console.print(f"[bold red]An error occurred during delete process:[/bold red] {str(e)}")
+            sys.exit(1)
 
     def generate_output(self, build_tasks):
         columns = []
