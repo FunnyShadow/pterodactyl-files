@@ -7,6 +7,7 @@ import argparse
 import signal
 import sys
 import time
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from rich.console import Console
 from rich.live import Live
@@ -44,9 +45,6 @@ class DockerImageBuilder:
         self.config_path = config_path
         self.client = docker.from_env()
         self.config = self._load_config()
-        self.default_resources_path = self.config.get(
-            "default_resources_path", "resources"
-        )
         self.region = self.config.get("region", "global")
         self.upload_config = self.config.get("upload", {})
         self.killer = GracefulKiller()
@@ -59,11 +57,6 @@ class DockerImageBuilder:
     def _prepare_build_context(self, build_config):
         temp_dir = tempfile.mkdtemp()
         shutil.copy2(self.dockerfile_path, temp_dir)
-
-        resources_path = build_config.get("resources_path", self.default_resources_path)
-        if os.path.exists(resources_path):
-            shutil.copytree(resources_path, os.path.join(temp_dir, "resources"))
-
         return temp_dir
 
     def _parse_progress(self, line):
@@ -71,9 +64,7 @@ class DockerImageBuilder:
         match = re.search(progress_pattern, line)
         if match:
             current, total = match.groups()
-            return self._convert_size_to_bytes(current), self._convert_size_to_bytes(
-                total
-            )
+            return self._convert_size_to_bytes(current), self._convert_size_to_bytes(total)
         return None, None
 
     def _convert_size_to_bytes(self, size_str):
@@ -88,9 +79,7 @@ class DockerImageBuilder:
     def _update_layer_progress(self, line, layer_tasks, progress):
         if "Pulling from" in line["status"]:
             layer_id = line["status"].split()[-1]
-            layer_tasks[layer_id] = progress.add_task(
-                f"[magenta]Pulling {layer_id}", total=100
-            )
+            layer_tasks[layer_id] = progress.add_task(f"[magenta]Pulling {layer_id}", total=100)
         elif "Pull complete" in line["status"]:
             layer_id = line["status"].split()[0]
             if layer_id in layer_tasks:
@@ -100,32 +89,19 @@ class DockerImageBuilder:
             if layer_id in layer_tasks:
                 current, total = self._parse_progress(line["progress"])
                 if current is not None and total is not None:
-                    progress.update(
-                        layer_tasks[layer_id], completed=current, total=total
-                    )
+                    progress.update(layer_tasks[layer_id], completed=current, total=total)
 
     def build_all(self):
         self.console = Console()
         build_tasks = []
 
-        with Live(
-            self.generate_output(build_tasks),
-            refresh_per_second=10,
-            console=self.console,
-        ) as live:
-            with ThreadPoolExecutor(
-                max_workers=self.config.get("max_concurrent_builds", 3)
-            ) as executor:
-                futures = {
-                    executor.submit(self.build_image, build_config): build_config
-                    for build_config in self.config["builds"]
-                }
+        with Live(self.generate_output(build_tasks), refresh_per_second=10, console=self.console) as live:
+            with ThreadPoolExecutor(max_workers=self.config.get("max_concurrent_builds", 3)) as executor:
+                futures = {executor.submit(self.build_image, build_config): build_config for build_config in self.config["builds"]}
 
                 for future in as_completed(futures):
                     if self.killer.kill_now:
-                        self.console.print(
-                            "\n[yellow]Received interrupt signal. Stopping builds...[/yellow]"
-                        )
+                        self.console.print("\n[yellow]Received interrupt signal. Stopping builds...[/yellow]")
                         executor.shutdown(wait=False)
                         return
 
@@ -172,24 +148,15 @@ class DockerImageBuilder:
         except Exception as e:
             end_time = time.time()
             duration = end_time - start_time
-            self.console.print(
-                f"[bold red]Error occurred while building {tag}:[/bold red]"
-            )
+            self.console.print(f"[bold red]Error occurred while building {tag}:[/bold red]")
             self.console.print_exception(show_locals=True)
-            return {
-                "tag": tag,
-                "status": "error",
-                "duration": duration,
-                "logs": logs + [str(e)],
-            }
+            return {"tag": tag, "status": "error", "duration": duration, "logs": logs + [str(e)]}
         finally:
             shutil.rmtree(context_path)
 
     def push_images(self):
         if not self.upload_config.get("enabled", False):
-            self.console.print(
-                "[yellow]Upload is not enabled in the configuration.[/yellow]"
-            )
+            self.console.print("[yellow]Upload is not enabled in the configuration.[/yellow]")
             return
 
         upload_tasks = []
@@ -234,7 +201,6 @@ class DockerImageBuilder:
             elif 'error' in line:
                 raise Exception(line['error'])
 
-
     def delete_images(self):
         deleted_images = []
         for build_config in self.config["builds"]:
@@ -249,9 +215,7 @@ class DockerImageBuilder:
                 self.console.print(f"[red]Error deleting image {tag}: {str(e)}[/red]")
 
         if deleted_images:
-            self.console.print(
-                f"[bold green]Deleted {len(deleted_images)} image(s).[/bold green]"
-            )
+            self.console.print(f"[bold green]Deleted {len(deleted_images)} image(s).[/bold green]")
         else:
             self.console.print("[yellow]No images were deleted.[/yellow]")
 
@@ -259,24 +223,14 @@ class DockerImageBuilder:
         columns = []
         for task in build_tasks:
             if task["status"] == "success":
-                text = Text(
-                    f"Successful build {task['tag']} -> {self.format_duration(task['duration'])}",
-                    style="green",
-                )
+                text = Text(f"Successful build {task['tag']} -> {self.format_duration(task['duration'])}", style="green")
             else:
-                text = Text(
-                    f"Failed build {task['tag']} -> {self.format_duration(task['duration'])}",
-                    style="red",
-                )
+                text = Text(f"Failed build {task['tag']} -> {self.format_duration(task['duration'])}", style="red")
             columns.append(text)
 
-        active_builds = [
-            task for task in build_tasks if task["status"] not in ["success", "error"]
-        ]
+        active_builds = [task for task in build_tasks if task["status"] not in ["success", "error"]]
         for task in active_builds:
-            text = Text(
-                f"Building {task['tag']} -> {self.format_duration(time.time() - task['start_time'])}\n"
-            )
+            text = Text(f"Building {task['tag']} -> {self.format_duration(time.time() - task['start_time'])}\n")
             text.append("\n".join(task["logs"][-5:]))  # Show last 5 log lines
             columns.append(text)
 
@@ -303,15 +257,9 @@ class DockerImageBuilder:
 
 
 def parse_arguments():
-    parser = argparse.ArgumentParser(
-        description="Build, upload, push, or delete Docker images based on configuration."
-    )
-    parser.add_argument(
-        "-d", "--dockerfile", default="Dockerfile", help="Path to the Dockerfile"
-    )
-    parser.add_argument(
-        "-c", "--config", default="config.yaml", help="Path to the configuration file"
-    )
+    parser = argparse.ArgumentParser(description="Build, upload, push, or delete Docker images based on configuration.")
+    parser.add_argument("-d", "--dockerfile", default="Dockerfile", help="Path to the Dockerfile")
+    parser.add_argument("-c", "--config", default="config.yaml", help="Path to the configuration file")
 
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
@@ -334,9 +282,7 @@ def main():
         elif args.command == "delete":
             builder.delete_images()
         else:
-            builder.console.print(
-                "[yellow]No command specified. Use 'build', 'push', or 'delete'.[/yellow]"
-            )
+            builder.console.print("[yellow]No command specified. Use 'build', 'push', or 'delete'.[/yellow]")
 
     except Exception as e:
         console = Console()

@@ -1,4 +1,3 @@
-default_resources_path: "res"
 max_concurrent_builds: 3
 region: "global"
 
