@@ -7,9 +7,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 
 class DockerImageBuilder:
-    def __init__(self, dockerfile_path='Dockerfile', resources_path='resources', config_path='config.yaml'):
+    def __init__(self, dockerfile_path='Dockerfile', default_resources_path='resources', config_path='config.yaml'):
         self.dockerfile_path = dockerfile_path
-        self.resources_path = resources_path
+        self.default_resources_path = default_resources_path
         self.config_path = config_path
         self.client = docker.from_env()
         self.config = self.load_config()
@@ -21,8 +21,11 @@ class DockerImageBuilder:
     def prepare_build_context(self, build_config):
         temp_dir = tempfile.mkdtemp()
         shutil.copy2(self.dockerfile_path, temp_dir)
-        if os.path.exists(self.resources_path):
-            shutil.copytree(self.resources_path, os.path.join(temp_dir, 'resources'))
+        
+        # Use custom resources path if specified, otherwise use default
+        resources_path = build_config.get('resources_path', self.default_resources_path)
+        if os.path.exists(resources_path):
+            shutil.copytree(resources_path, os.path.join(temp_dir, 'resources'))
         return temp_dir
 
     def build_image(self, build_config):
