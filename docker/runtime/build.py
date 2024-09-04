@@ -7,12 +7,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 
 class DockerImageBuilder:
-    def __init__(self, dockerfile_path='Dockerfile', default_resources_path='resources', config_path='config.yaml'):
+    def __init__(self, dockerfile_path='Dockerfile', config_path='config.yaml'):
         self.dockerfile_path = dockerfile_path
-        self.default_resources_path = default_resources_path
         self.config_path = config_path
         self.client = docker.from_env()
         self.config = self.load_config()
+        self.default_resources_path = self.config.get('default_resources_path', 'resources')
 
     def load_config(self):
         with open(self.config_path, 'r') as f:
