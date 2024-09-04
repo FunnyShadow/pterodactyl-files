@@ -11,6 +11,8 @@ from colorama import init, Fore, Style, Back
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 import logging
+import base64
+import boto3
 
 init(autoreset=True)
 stop_flag = threading.Event()
@@ -39,13 +41,11 @@ class ColoredFormatter(logging.Formatter):
         formatter = logging.Formatter(log_fmt, datefmt="%Y-%m-%d %H:%M:%S")
         return formatter.format(record)
 
-
 logger = logging.getLogger("DockerScript")
 logger.setLevel(logging.INFO)
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(ColoredFormatter())
 logger.addHandler(console_handler)
-
 
 def load_config(config_file: str) -> Dict:
     try:
@@ -71,14 +71,12 @@ def retry_operation(operation: Callable, *args, retry: int = 3, **kwargs):
                 logger.error(f"Operation failed after {retry} attempts: {str(e)}")
                 raise
 
-
 def build_image(
     client: docker.DockerClient, build: Dict, config: Dict, cli_build_dir: str = None
 ):
     tag = build["tag"]
     logger.info(f"Building image: {tag}")
     build_dir = cli_build_dir or build.get("build_dir") or config.get("build_dir", ".")
-    logger.info(f"Using build directory: {build_dir}")
 
     build_args = build.get("build_args", {})
     try:
@@ -87,7 +85,6 @@ def build_image(
     except docker.errors.BuildError as e:
         logger.error(f"Build failed for {tag}: {str(e)}")
         raise
-
 
 def push_image(client: docker.DockerClient, tag: str, config: Dict):
     logger.info(f"Pushing image: {tag}")
@@ -113,7 +110,6 @@ def push_image(client: docker.DockerClient, tag: str, config: Dict):
         logger.error(f"Push failed for {tag}: {str(e)}")
         raise
 
-
 def delete_image(client: docker.DockerClient, tag: str):
     logger.info(f"Deleting image: {tag}")
     try:
@@ -124,7 +120,6 @@ def delete_image(client: docker.DockerClient, tag: str):
     except Exception as e:
         logger.error(f"Delete failed for {tag}: {str(e)}")
         raise
-
 
 def process_image(
     client: docker.DockerClient,
@@ -138,7 +133,6 @@ def process_image(
     return retry_operation(
         operation, client, build, config, args.build_dir, retry=args.retry
     )
-
 
 def process_images_parallel(
     client: docker.DockerClient,
@@ -170,7 +164,7 @@ def process_images_parallel(
 
     if (
         operation == build_image
-        and config["upload"]["auto_push"]
+        and config["upload"].get("auto_push", False)
         and not stop_flag.is_set()
     ):
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -193,7 +187,6 @@ def process_images_parallel(
                 for future in futures:
                     future.cancel()
                 raise
-
 
 def main():
     parser = argparse.ArgumentParser(
@@ -274,7 +267,6 @@ def main():
     if stop_flag.is_set():
         logger.warning("Some operations may have been interrupted")
         sys.exit(1)
-
 
 if __name__ == "__main__":
     main()

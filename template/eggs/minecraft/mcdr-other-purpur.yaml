@@ -8,22 +8,10 @@ author: noreply@foxrealms.online
 description:
 features:
 docker_images:
-  'Java 21 | MCDR 2.13': 'bluefunny/minecraft:mcdr-j21-2.13'
-  'Java 21 | MCDR 2.12': 'bluefunny/minecraft:mcdr-j21-2.12'
-  'Java 21 | MCDR 2.11': 'bluefunny/minecraft:mcdr-j21-2.11'
-  'Java 21 | MCDR 2.10': 'bluefunny/minecraft:mcdr-j21-2.10'
-  'Java 17 | MCDR 2.13': 'bluefunny/minecraft:mcdr-j17-2.13'
-  'Java 17 | MCDR 2.12': 'bluefunny/minecraft:mcdr-j17-2.12'
-  'Java 17 | MCDR 2.11': 'bluefunny/minecraft:mcdr-j17-2.11'
-  'Java 17 | MCDR 2.10': 'bluefunny/minecraft:mcdr-j17-2.10'
-  'Java 11 | MCDR 2.13': 'bluefunny/minecraft:mcdr-j11-2.13'
-  'Java 11 | MCDR 2.12': 'bluefunny/minecraft:mcdr-j11-2.12'
-  'Java 11 | MCDR 2.11': 'bluefunny/minecraft:mcdr-j11-2.11'
-  'Java 11 | MCDR 2.10': 'bluefunny/minecraft:mcdr-j11-2.10'
-  'Java 8 | MCDR 2.13': 'bluefunny/minecraft:mcdr-j8-2.13'
-  'Java 8 | MCDR 2.12': 'bluefunny/minecraft:mcdr-j8-2.12'
-  'Java 8 | MCDR 2.11': 'bluefunny/minecraft:mcdr-j8-2.11'
-  'Java 8 | MCDR 2.10': 'bluefunny/minecraft:mcdr-j8-2.10'
+  'Java 21 | MCDR 2.13': 'bluefunny/minecraft:mcdr-j21'
+  'Java 17 | MCDR 2.13': 'bluefunny/minecraft:mcdr-j17'
+  'Java 11 | MCDR 2.13': 'bluefunny/minecraft:mcdr-j11'
+  'Java 8 | MCDR 2.10': 'bluefunny/minecraft:mcdr-j8'
 file_denylist: []
 startup: python3.12 -m mcdreforged
 config:
