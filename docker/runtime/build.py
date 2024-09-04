@@ -13,6 +13,7 @@ class DockerImageBuilder:
         self.client = docker.from_env()
         self.config = self.load_config()
         self.default_resources_path = self.config.get('default_resources_path', 'resources')
+        self.region = self.config.get('region', 'global')
 
     def load_config(self):
         with open(self.config_path, 'r') as f:
@@ -22,7 +23,6 @@ class DockerImageBuilder:
         temp_dir = tempfile.mkdtemp()
         shutil.copy2(self.dockerfile_path, temp_dir)
         
-        # Use custom resources path if specified, otherwise use default
         resources_path = build_config.get('resources_path', self.default_resources_path)
         if os.path.exists(resources_path):
             shutil.copytree(resources_path, os.path.join(temp_dir, 'resources'))
@@ -31,11 +31,15 @@ class DockerImageBuilder:
     def build_image(self, build_config):
         context_path = self.prepare_build_context(build_config)
         try:
+            # Add REGION to build_args
+            build_args = build_config.get('build_args', {})
+            build_args['REGION'] = build_config.get('region', self.region)
+
             image, logs = self.client.images.build(
                 path=context_path,
                 dockerfile=os.path.basename(self.dockerfile_path),
                 tag=build_config['tag'],
-                buildargs=build_config.get('build_args', {}),
+                buildargs=build_args,
                 rm=True
             )
             return image.id
