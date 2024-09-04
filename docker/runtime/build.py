@@ -11,15 +11,12 @@ from colorama import init, Fore, Style, Back
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 import logging
-<<<<<<< HEAD
-=======
-import io
->>>>>>> fb6d894d57af9bb7eb27c4abae9b7160233a1d28
 import base64
 import boto3
 
 init(autoreset=True)
 stop_flag = threading.Event()
+
 
 class ColoredFormatter(logging.Formatter):
     level_colors = {
@@ -38,64 +35,42 @@ class ColoredFormatter(logging.Formatter):
             levelname = f"{Fore.BLACK}{Back.YELLOW}{levelname:^7}{Style.RESET_ALL}"
         elif record.levelno in (logging.ERROR, logging.CRITICAL):
             levelname = f"{Fore.WHITE}{Back.RED}{levelname:^7}{Style.RESET_ALL}"
-        
+
         log_color = self.level_colors.get(record.levelno, "")
         log_fmt = f"{Fore.CYAN}[%(asctime)s]{Style.RESET_ALL} {levelname} {log_color}%(message)s{Style.RESET_ALL}"
         formatter = logging.Formatter(log_fmt, datefmt="%Y-%m-%d %H:%M:%S")
         return formatter.format(record)
 
-<<<<<<< HEAD
 logger = logging.getLogger("DockerScript")
 logger.setLevel(logging.INFO)
-=======
-main_logger = logging.getLogger("DockerScript")
-main_logger.setLevel(logging.INFO)
->>>>>>> fb6d894d57af9bb7eb27c4abae9b7160233a1d28
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(ColoredFormatter())
-main_logger.addHandler(console_handler)
-thread_local = threading.local()
+logger.addHandler(console_handler)
 
-<<<<<<< HEAD
-=======
-def get_thread_logger():
-    if not hasattr(thread_local, "logger"):
-        thread_local.logger = logging.getLogger(f"Thread-{threading.get_ident()}")
-        thread_local.logger.setLevel(logging.INFO)
-        thread_local.log_stream = io.StringIO()
-        handler = logging.StreamHandler(thread_local.log_stream)
-        handler.setFormatter(ColoredFormatter())
-        thread_local.logger.addHandler(handler)
-    return thread_local.logger
-
-def get_thread_log():
-    return thread_local.log_stream.getvalue()
-
->>>>>>> fb6d894d57af9bb7eb27c4abae9b7160233a1d28
 def load_config(config_file: str) -> Dict:
     try:
-        with open(config_file, 'r') as file:
+        with open(config_file, "r") as file:
             return yaml.safe_load(file)
     except FileNotFoundError:
-        main_logger.error(f"Config file not found: {config_file}")
+        logger.error(f"Config file not found: {config_file}")
         sys.exit(1)
     except yaml.YAMLError as e:
-        main_logger.error(f"Error parsing config file: {e}")
+        logger.error(f"Error parsing config file: {e}")
         sys.exit(1)
 
-def retry_operation(operation: Callable, *args, retry: int = 3, logger=None, **kwargs):
+
+def retry_operation(operation: Callable, *args, retry: int = 3, **kwargs):
     for attempt in range(retry):
         try:
             return operation(*args, **kwargs)
         except Exception as e:
             if attempt < retry - 1:
                 logger.warning(f"Operation failed, retrying... ({attempt + 1}/{retry})")
-                time.sleep(2 ** attempt)  # Exponential backoff
+                time.sleep(2**attempt)  # Exponential backoff
             else:
                 logger.error(f"Operation failed after {retry} attempts: {str(e)}")
                 raise
 
-<<<<<<< HEAD
 def build_image(
     client: docker.DockerClient, build: Dict, config: Dict, cli_build_dir: str = None
 ):
@@ -104,15 +79,6 @@ def build_image(
     build_dir = cli_build_dir or build.get("build_dir") or config.get("build_dir", ".")
 
     build_args = build.get("build_args", {})
-=======
-def build_image(client: docker.DockerClient, build: Dict, config: Dict, cli_build_dir: str = None, logger=None):
-    tag = build['tag']
-    logger.info(f"Building image: {tag}")
-    build_dir = cli_build_dir or build.get('build_dir') or config.get('build_dir', '.')
-    logger.info(f"Using build directory: {build_dir}")
-    
-    build_args = build.get('build_args', {})
->>>>>>> fb6d894d57af9bb7eb27c4abae9b7160233a1d28
     try:
         client.images.build(path=build_dir, tag=tag, buildargs=build_args)
         logger.info(f"Successfully built image: {tag}")
@@ -120,21 +86,21 @@ def build_image(client: docker.DockerClient, build: Dict, config: Dict, cli_buil
         logger.error(f"Build failed for {tag}: {str(e)}")
         raise
 
-<<<<<<< HEAD
 def push_image(client: docker.DockerClient, tag: str, config: Dict):
-=======
-def push_image(client: docker.DockerClient, tag: str, config: Dict, logger=None):
->>>>>>> fb6d894d57af9bb7eb27c4abae9b7160233a1d28
     logger.info(f"Pushing image: {tag}")
     try:
-        registry_type = config['upload']['registry_type']
-        if registry_type == 'dockerhub':
+        registry_type = config["upload"]["registry_type"]
+        if registry_type == "dockerhub":
             client.images.push(tag)
-        elif registry_type == 'ecr':
-            ecr_client = boto3.client('ecr', region_name=config['region'])
+        elif registry_type == "ecr":
+            ecr_client = boto3.client("ecr", region_name=config["region"])
             token = ecr_client.get_authorization_token()
-            username, password = base64.b64decode(token['authorizationData'][0]['authorizationToken']).decode().split(':')
-            registry = token['authorizationData'][0]['proxyEndpoint']
+            username, password = (
+                base64.b64decode(token["authorizationData"][0]["authorizationToken"])
+                .decode()
+                .split(":")
+            )
+            registry = token["authorizationData"][0]["proxyEndpoint"]
             client.login(username=username, password=password, registry=registry)
             client.images.push(tag)
         else:
@@ -144,11 +110,7 @@ def push_image(client: docker.DockerClient, tag: str, config: Dict, logger=None)
         logger.error(f"Push failed for {tag}: {str(e)}")
         raise
 
-<<<<<<< HEAD
 def delete_image(client: docker.DockerClient, tag: str):
-=======
-def delete_image(client: docker.DockerClient, tag: str, logger=None):
->>>>>>> fb6d894d57af9bb7eb27c4abae9b7160233a1d28
     logger.info(f"Deleting image: {tag}")
     try:
         client.images.remove(tag)
@@ -159,7 +121,6 @@ def delete_image(client: docker.DockerClient, tag: str, logger=None):
         logger.error(f"Delete failed for {tag}: {str(e)}")
         raise
 
-<<<<<<< HEAD
 def process_image(
     client: docker.DockerClient,
     build: Dict,
@@ -167,19 +128,12 @@ def process_image(
     operation: Callable,
     args: argparse.Namespace,
 ):
-=======
-def process_image(client: docker.DockerClient, build: Dict, config: Dict, operation: Callable, args: argparse.Namespace):
->>>>>>> fb6d894d57af9bb7eb27c4abae9b7160233a1d28
     if stop_flag.is_set():
         return
-    logger = get_thread_logger()
-    try:
-        retry_operation(operation, client, build, config, args.build_dir, retry=args.retry, logger=logger)
-    except Exception as e:
-        logger.error(f"An error occurred: {str(e)}")
-    return get_thread_log()
+    return retry_operation(
+        operation, client, build, config, args.build_dir, retry=args.retry
+    )
 
-<<<<<<< HEAD
 def process_images_parallel(
     client: docker.DockerClient,
     config: Dict,
@@ -187,45 +141,47 @@ def process_images_parallel(
     args: argparse.Namespace,
 ):
     max_workers = args.parallel or config.get("max_parallel_tasks", 1)
-=======
-def process_images_parallel(client: docker.DockerClient, config: Dict, operation: Callable, args: argparse.Namespace):
-    max_workers = args.parallel or config.get('max_parallel_tasks', 1)
->>>>>>> fb6d894d57af9bb7eb27c4abae9b7160233a1d28
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = [executor.submit(process_image, client, build, config, operation, args) for build in config['builds']]
+        futures = [
+            executor.submit(process_image, client, build, config, operation, args)
+            for build in config["builds"]
+        ]
         try:
             for future in as_completed(futures):
-                log_output = future.result()
-                print(log_output, end='')
+                try:
+                    future.result()
+                except Exception as e:
+                    logger.error(f"An error occurred: {str(e)}")
                 if stop_flag.is_set():
                     break
         except KeyboardInterrupt:
-            main_logger.warning("Received interrupt, stopping operations...")
+            logger.warning("Received interrupt, stopping operations...")
             stop_flag.set()
             executor.shutdown(wait=False)
             for future in futures:
                 future.cancel()
             raise
 
-<<<<<<< HEAD
     if (
         operation == build_image
         and config["upload"].get("auto_push", False)
         and not stop_flag.is_set()
     ):
-=======
-    if operation == build_image and config['upload']['auto_push'] and not stop_flag.is_set():
->>>>>>> fb6d894d57af9bb7eb27c4abae9b7160233a1d28
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = [executor.submit(push_image, client, build['tag'], config, get_thread_logger()) for build in config['builds']]  # 传递 logger 参数
+            futures = [
+                executor.submit(push_image, client, build["tag"], config)
+                for build in config["builds"]
+            ]
             try:
                 for future in as_completed(futures):
-                    log_output = future.result()
-                    print(log_output, end='')
+                    try:
+                        future.result()
+                    except Exception as e:
+                        logger.error(f"An error occurred while pushing: {str(e)}")
                     if stop_flag.is_set():
                         break
             except KeyboardInterrupt:
-                main_logger.warning("Received interrupt, stopping push operations...")
+                logger.warning("Received interrupt, stopping push operations...")
                 stop_flag.set()
                 executor.shutdown(wait=False)
                 for future in futures:
@@ -236,17 +192,43 @@ def main():
     parser = argparse.ArgumentParser(
         description="Docker image management script for Minecraft servers",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="Examples:\n  %(prog)s build\n  %(prog)s push\n  %(prog)s delete"
+        epilog="Examples:\n  %(prog)s build\n  %(prog)s push\n  %(prog)s delete",
     )
-    parser.add_argument("-r", "--retry", type=int, default=3, help="Number of retries for failed operations (default: 3)")
-    parser.add_argument("-c", "--config", default="config.yaml", help="Path to the configuration file (default: config.yaml)")
-    parser.add_argument("-d", "--build-dir", help="Override the build directory for all images")
-    parser.add_argument("--region", help="Override the region specified in the config file")
-    parser.add_argument("--username", help="Override the username specified in the config file")
-    parser.add_argument("--password", help="Override the password specified in the config file")
-    parser.add_argument("-p", "--parallel", type=int, help="Maximum number of parallel tasks (overrides config file)")
-    
-    subparsers = parser.add_subparsers(title="Commands", dest="command", required=True, metavar="COMMAND")
+    parser.add_argument(
+        "-r",
+        "--retry",
+        type=int,
+        default=3,
+        help="Number of retries for failed operations (default: 3)",
+    )
+    parser.add_argument(
+        "-c",
+        "--config",
+        default="config.yaml",
+        help="Path to the configuration file (default: config.yaml)",
+    )
+    parser.add_argument(
+        "-d", "--build-dir", help="Override the build directory for all images"
+    )
+    parser.add_argument(
+        "--region", help="Override the region specified in the config file"
+    )
+    parser.add_argument(
+        "--username", help="Override the username specified in the config file"
+    )
+    parser.add_argument(
+        "--password", help="Override the password specified in the config file"
+    )
+    parser.add_argument(
+        "-p",
+        "--parallel",
+        type=int,
+        help="Maximum number of parallel tasks (overrides config file)",
+    )
+
+    subparsers = parser.add_subparsers(
+        title="Commands", dest="command", required=True, metavar="COMMAND"
+    )
 
     subparsers.add_parser("build", help="Build all images")
     subparsers.add_parser("push", help="Push all images")
@@ -258,28 +240,32 @@ def main():
 
     # Override config values with command line arguments if provided
     if args.region:
-        config['region'] = args.region
+        config["region"] = args.region
     if args.username:
-        config['upload']['username'] = args.username
+        config["upload"]["username"] = args.username
     if args.password:
-        config['upload']['password'] = args.password
+        config["upload"]["password"] = args.password
 
     client = docker.from_env()
 
     try:
         operations = {
             "build": build_image,
-            "push": lambda client, build, config, cli_build_dir, logger: push_image(client, build['tag'], config, logger),
-            "delete": lambda client, build, _, cli_build_dir, logger: delete_image(client, build['tag'], logger)
+            "push": lambda client, build, config, cli_build_dir: push_image(
+                client, build["tag"], config
+            ),
+            "delete": lambda client, build, _, cli_build_dir: delete_image(
+                client, build["tag"]
+            ),
         }
         process_images_parallel(client, config, operations[args.command], args)
     except KeyboardInterrupt:
-        main_logger.error("Operation canceled by user")
+        logger.error("Operation canceled by user")
     finally:
         client.close()
 
     if stop_flag.is_set():
-        main_logger.warning("Some operations may have been interrupted")
+        logger.warning("Some operations may have been interrupted")
         sys.exit(1)
 
 if __name__ == "__main__":
