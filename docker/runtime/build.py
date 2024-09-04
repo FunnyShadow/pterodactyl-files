@@ -11,8 +11,11 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from rich.console import Console
 from rich.live import Live
 from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn, TaskID
-from rich.table import Table
+from rich.progress import Progress, BarColumn, TextColumn, TimeElapsedColumn
+from rich.traceback import install as install_rich_traceback
+
+# Install rich traceback handler
+install_rich_traceback(show_locals=True)
 
 class GracefulKiller:
     kill_now = False
@@ -54,6 +57,7 @@ class DockerImageBuilder:
         resources_path = build_config.get('resources_path', self.default_resources_path)
         if os.path.exists(resources_path):
             shutil.copytree(resources_path, os.path.join(temp_dir, 'resources'))
+        
         return temp_dir
 
     def parse_progress(self, line):
@@ -101,6 +105,17 @@ class DockerImageBuilder:
         finally:
             shutil.rmtree(context_path)
 
+    def upload_image(self, image, build_config):
+        registry_type = self.upload_config.get('registry_type', 'dockerhub')
+        registry = self.REGISTRY_PRESETS.get(registry_type, '')
+        
+        if registry:
+            repository = f"{registry}/{build_config['tag']}"
+        else:
+            repository = build_config['tag']
+
+        self.client.images.push(repository)
+
     def build_and_upload(self, build_config, progress):
         task_id = progress.add_task(f"[cyan]Building {build_config['tag']}", total=100)
         layer_tasks = {}
@@ -136,7 +151,9 @@ class DockerImageBuilder:
 
             return build_config['tag']
         except Exception as e:
-            progress.update(task_id, description=f"[red]Error: {build_config['tag']} - {str(e)}")
+            progress.update(task_id, description=f"[red]Error: {build_config['tag']}")
+            self.console.print(f"[bold red]Error occurred while building {build_config['tag']}:[/bold red]")
+            self.console.print_exception(show_locals=True)
             return None
 
     def build_all(self):
@@ -162,50 +179,22 @@ class DockerImageBuilder:
 
         self.console.print("[bold green]All builds completed.[/bold green]")
 
-
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Docker Image Builder and Uploader")
-    parser.add_argument("-c", "--config", default="config.yaml", help="Path to the configuration file (default: config.yaml)")
-    parser.add_argument("-d", "--dockerfile", default="Dockerfile", help="Path to the Dockerfile (default: Dockerfile)")
-    parser.add_argument("--dry-run", action="store_true", help="Perform a dry run without actually building or uploading images")
-    parser.add_argument("--no-upload", action="store_true", help="Build images but do not upload them")
-    parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output")
-    parser.add_argument("--max-concurrent", type=int, help="Maximum number of concurrent builds (overrides config file)")
-    parser.add_argument("--list-presets", action="store_true", help="List available registry presets")
+    parser = argparse.ArgumentParser(description="Build Docker images based on configuration.")
+    parser.add_argument('-d', '--dockerfile', default='Dockerfile', help='Path to the Dockerfile')
+    parser.add_argument('-c', '--config', default='config.yaml', help='Path to the configuration file')
     return parser.parse_args()
 
 def main():
     args = parse_arguments()
-
-    if args.list_presets:
-        print("Available registry presets:")
-        for preset in DockerImageBuilder.REGISTRY_PRESETS:
-            print(f"  - {preset}")
-        return
-
-    builder = DockerImageBuilder(dockerfile_path=args.dockerfile, config_path=args.config)
-
-    if args.verbose:
-        print(f"Using configuration file: {args.config}")
-        print(f"Using Dockerfile: {args.dockerfile}")
-
-    if args.dry_run:
-        print("Performing dry run:")
-        for build_config in builder.config['builds']:
-            print(f"  Would build: {build_config['tag']}")
-        return
-
-    if args.no_upload:
-        builder.upload_config['enabled'] = False
-        print("Upload disabled. Images will be built but not uploaded.")
-
-    if args.max_concurrent:
-        builder.config['max_concurrent_builds'] = args.max_concurrent
-
     try:
+        builder = DockerImageBuilder(args.dockerfile, args.config)
         builder.build_all()
-    except KeyboardInterrupt:
-        print("\nReceived keyboard interrupt. Exiting...")
+    except Exception as e:
+        console = Console()
+        console.print("[bold red]An unexpected error occurred:[/bold red]")
+        console.print_exception(show_locals=True)
+        sys.exit(1)
 
 if __name__ == "__main__":
     main()
