@@ -77,8 +77,11 @@ class DockerImageBuilder:
         else:
             return int(float(size_str))
 
-    def build_image(self, build_config):
+    def build_image(self, build_config, progress):
         context_path = self.prepare_build_context(build_config)
+        task_id = progress.add_task(f"[cyan]Building {build_config['tag']}", total=100)
+        layer_tasks = {}
+        
         try:
             build_args = build_config.get('build_args', {})
             build_args['REGION'] = build_config.get('region', self.region)
@@ -91,59 +94,37 @@ class DockerImageBuilder:
                 rm=True,
                 decode=True
             ):
-                if 'stream' in line:
-                    yield 'stream', line['stream'].strip()
-                elif 'status' in line:
-                    yield 'status', line['status']
-                    if 'progress' in line:
-                        yield 'progress', line['progress']
-                elif 'error' in line:
-                    raise Exception(line['error'])
-
-            image = self.client.images.get(build_config['tag'])
-            return image
-        finally:
-            shutil.rmtree(context_path)
-
-    def build_and_upload(self, build_config, progress):
-        task_id = progress.add_task(f"[cyan]Building {build_config['tag']}", total=100)
-        layer_tasks = {}
-        
-        try:
-            for output_type, output in self.build_image(build_config):
                 if self.killer.kill_now:
                     return None
 
-                if output_type == 'stream':
-                    progress.update(task_id, description=f"[cyan]Building {build_config['tag']}: {output}")
-                elif output_type == 'status':
-                    if 'Pulling from' in output:
-                        layer_id = output.split()[-1]
+                if 'stream' in line:
+                    progress.update(task_id, description=f"[cyan]Building {build_config['tag']}: {line['stream'].strip()}")
+                elif 'status' in line:
+                    if 'Pulling from' in line['status']:
+                        layer_id = line['status'].split()[-1]
                         layer_tasks[layer_id] = progress.add_task(f"[magenta]Pulling {layer_id}", total=100)
-                    elif 'Pull complete' in output:
-                        layer_id = output.split()[0]
+                    elif 'Pull complete' in line['status']:
+                        layer_id = line['status'].split()[0]
                         if layer_id in layer_tasks:
                             progress.update(layer_tasks[layer_id], completed=100)
-                elif output_type == 'progress':
-                    layer_id = output.split()[0]
-                    if layer_id in layer_tasks:
-                        current, total = self.parse_progress(output)
-                        if current is not None and total is not None:
-                            progress.update(layer_tasks[layer_id], completed=current, total=total)
+                    if 'progress' in line:
+                        layer_id = line['id']
+                        if layer_id in layer_tasks:
+                            current, total = self.parse_progress(line['progress'])
+                            if current is not None and total is not None:
+                                progress.update(layer_tasks[layer_id], completed=current, total=total)
+                elif 'error' in line:
+                    raise Exception(line['error'])
 
             progress.update(task_id, description=f"[green]Built {build_config['tag']}", completed=100)
-
-            if self.upload_config.get('enabled', False):
-                upload_task = progress.add_task(f"[cyan]Uploading {build_config['tag']}", total=100)
-                self.upload_image(self.client.images.get(build_config['tag']), build_config)
-                progress.update(upload_task, completed=100, description=f"[green]Uploaded {build_config['tag']}")
-
             return build_config['tag']
         except Exception as e:
             progress.update(task_id, description=f"[red]Error: {build_config['tag']}")
             self.console.print(f"[bold red]Error occurred while building {build_config['tag']}:[/bold red]")
             self.console.print_exception(show_locals=True)
             return None
+        finally:
+            shutil.rmtree(context_path)
 
     def build_all(self):
         progress = Progress(
@@ -155,7 +136,7 @@ class DockerImageBuilder:
 
         with Live(Panel(progress), refresh_per_second=10, console=self.console) as live:
             with ThreadPoolExecutor(max_workers=self.config.get('max_concurrent_builds', 3)) as executor:
-                futures = {executor.submit(self.build_and_upload, build_config, progress): build_config for build_config in self.config['builds']}
+                futures = {executor.submit(self.build_image, build_config, progress): build_config for build_config in self.config['builds']}
                 
                 for future in as_completed(futures):
                     if self.killer.kill_now:
@@ -168,16 +149,30 @@ class DockerImageBuilder:
 
         self.console.print("[bold green]All builds completed.[/bold green]")
 
-    def upload_image(self, image, build_config):
-        registry_type = self.upload_config.get('registry_type', 'dockerhub')
-        registry = self.REGISTRY_PRESETS.get(registry_type, '')
-        
-        if registry:
-            repository = f"{registry}/{build_config['tag']}"
-        else:
-            repository = build_config['tag']
+        if self.upload_config.get('auto_push', False):
+            self.push_images()
 
-        self.client.images.push(repository)
+    def push_images(self):
+        progress = Progress(
+            TextColumn("[progress.description]{task.description}"),
+            BarColumn(),
+            TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+            TimeElapsedColumn()
+        )
+
+        with Live(Panel(progress), refresh_per_second=10, console=self.console) as live:
+            for build_config in self.config['builds']:
+                tag = build_config['tag']
+                task_id = progress.add_task(f"[cyan]Uploading {tag}", total=100)
+                try:
+                    self.upload_image(self.client.images.get(tag), build_config)
+                    progress.update(task_id, completed=100, description=f"[green]Uploaded {tag}")
+                except docker.errors.ImageNotFound:
+                    progress.update(task_id, description=f"[red]Image not found: {tag}")
+                except Exception as e:
+                    progress.update(task_id, description=f"[red]Error uploading {tag}: {str(e)}")
+
+        self.console.print("[bold green]Upload process completed.[/bold green]")
 
     def push_images(self):
         if not self.upload_config.get('enabled', False):

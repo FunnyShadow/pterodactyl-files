@@ -3,7 +3,7 @@ max_concurrent_builds: 3
 region: "global"
 
 upload:
-  enabled: true
+  auto_push: true
   registry_type: "dockerhub"
   username: "your-username"
   password: "your-password"
