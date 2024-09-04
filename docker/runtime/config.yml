@@ -1,0 +1,43 @@
+default_resources_path: "res"
+max_concurrent_builds: 3
+region: "global"
+
+upload:
+  enabled: true
+  registry_type: "dockerhub"
+  username: "your-username"
+  password: "your-password"
+
+builds:
+  - tag: "bluefunny/minecraft:vanilla-j8"
+    build_args:
+      JAVA: "8"
+      TYPE: "vanilla"
+  - tag: "bluefunny/minecraft:vanilla-j11"
+    build_args:
+      JAVA: "11"
+      TYPE: "vanilla"
+  - tag: "bluefunny/minecraft:vanilla-j17"
+    build_args:
+      JAVA: "17"
+      TYPE: "vanilla"
+  - tag: "bluefunny/minecraft:vanilla-j21"
+    build_args:
+      JAVA: "21"
+      TYPE: "vanilla"
+  - tag: "bluefunny/minecraft:mcdr-j8"
+    build_args:
+      JAVA: "8"
+      TYPE: "mcdr"
+  - tag: "bluefunny/minecraft:mcdr-j11"
+    build_args:
+      JAVA: "11"
+      TYPE: "mcdr"
+  - tag: "bluefunny/minecraft:mcdr-j17"
+    build_args:
+      JAVA: "17"
+      TYPE: "mcdr"
+  - tag: "bluefunny/minecraft:mcdr-j21"
+    build_args:
+      JAVA: "21"
+      TYPE: "mcdr"
