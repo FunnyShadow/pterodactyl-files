@@ -4,8 +4,19 @@ import docker
 import tempfile
 import shutil
 import argparse
+import signal
+import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
+
+class GracefulKiller:
+    kill_now = False
+    def __init__(self):
+        signal.signal(signal.SIGINT, self.exit_gracefully)
+        signal.signal(signal.SIGTERM, self.exit_gracefully)
+
+    def exit_gracefully(self, *args):
+        self.kill_now = True
 
 class DockerImageBuilder:
     REGISTRY_PRESETS = {
@@ -24,6 +35,7 @@ class DockerImageBuilder:
         self.default_resources_path = self.config.get('default_resources_path', 'resources')
         self.region = self.config.get('region', 'global')
         self.upload_config = self.config.get('upload', {})
+        self.killer = GracefulKiller()
 
     def load_config(self):
         with open(self.config_path, 'r') as f:
@@ -106,6 +118,11 @@ class DockerImageBuilder:
             
             with tqdm(total=total_builds, desc="Overall Progress", position=0) as pbar:
                 for future in as_completed(futures):
+                    if self.killer.kill_now:
+                        print("\nReceived interrupt signal. Stopping builds...")
+                        executor.shutdown(wait=False)
+                        return
+
                     build_config = futures[future]
                     future.result()  # This will raise any exceptions that occurred
                     completed_builds += 1
@@ -152,7 +169,10 @@ def main():
     if args.max_concurrent:
         builder.config['max_concurrent_builds'] = args.max_concurrent
 
-    builder.build_all()
+    try:
+        builder.build_all()
+    except KeyboardInterrupt:
+        print("\nReceived keyboard interrupt. Exiting...")
 
 if __name__ == "__main__":
     main()
