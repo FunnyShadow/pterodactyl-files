@@ -10,106 +10,120 @@ import docker
 from colorama import init, Fore, Style, Back
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
+import logging
 
 init(autoreset=True)
 stop_flag = threading.Event()
 
 
-def print_log(level: str, message: str):
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+class ColoredFormatter(logging.Formatter):
     level_colors = {
-        "INFO": f"{Fore.WHITE}{Back.BLUE}",
-        "SUCCESS": f"{Fore.WHITE}{Back.GREEN}",
-        "ERROR": f"{Fore.WHITE}{Back.RED}",
-        "WARN": f"{Fore.BLACK}{Back.YELLOW}",
+        logging.DEBUG: Fore.CYAN,
+        logging.INFO: Fore.WHITE,
+        logging.WARNING: f"{Fore.BLACK}{Back.YELLOW}",
+        logging.ERROR: f"{Fore.WHITE}{Back.RED}",
+        logging.CRITICAL: f"{Fore.WHITE}{Back.RED}",
     }
-    level_color = level_colors.get(level, Fore.WHITE)
-    print(
-        f"{Fore.CYAN}[{timestamp}]{Style.RESET_ALL} {level_color}{level:^7}{Style.RESET_ALL} {message}"
-    )
+
+    def format(self, record):
+        levelname = record.levelname
+        if record.levelno == logging.INFO:
+            levelname = f"{Fore.WHITE}{Back.BLUE}{levelname:^7}{Style.RESET_ALL}"
+        elif record.levelno == logging.WARNING:
+            levelname = f"{Fore.BLACK}{Back.YELLOW}{levelname:^7}{Style.RESET_ALL}"
+        elif record.levelno in (logging.ERROR, logging.CRITICAL):
+            levelname = f"{Fore.WHITE}{Back.RED}{levelname:^7}{Style.RESET_ALL}"
+
+        log_color = self.level_colors.get(record.levelno, "")
+        log_fmt = f"{Fore.CYAN}[%(asctime)s]{Style.RESET_ALL} {levelname} {log_color}%(message)s{Style.RESET_ALL}"
+        formatter = logging.Formatter(log_fmt, datefmt="%Y-%m-%d %H:%M:%S")
+        return formatter.format(record)
+
+
+logger = logging.getLogger("DockerScript")
+logger.setLevel(logging.INFO)
+console_handler = logging.StreamHandler()
+console_handler.setFormatter(ColoredFormatter())
+logger.addHandler(console_handler)
 
 
 def load_config(config_file: str) -> Dict:
-    with open(config_file, "r") as file:
-        return yaml.safe_load(file)
-
-
-def docker_login(client: docker.DockerClient, config: Dict):
-    if config["upload"]["registry_type"] == "dockerhub":
-        try:
-            client.login(
-                username=config["upload"]["username"],
-                password=config["upload"]["password"],
-            )
-            print_log("SUCCESS", "Successfully logged in to Docker Hub")
-        except docker.errors.APIError as e:
-            print_log("ERROR", f"Failed to log in to Docker Hub: {str(e)}")
-            sys.exit(1)
+    try:
+        with open(config_file, "r") as file:
+            return yaml.safe_load(file)
+    except FileNotFoundError:
+        logger.error(f"Config file not found: {config_file}")
+        sys.exit(1)
+    except yaml.YAMLError as e:
+        logger.error(f"Error parsing config file: {e}")
+        sys.exit(1)
 
 
 def retry_operation(operation: Callable, *args, retry: int = 3, **kwargs):
     for attempt in range(retry):
         try:
             return operation(*args, **kwargs)
-        except docker.errors.APIError as e:
-            print_log("ERROR", f"Operation failed: {str(e)}")
+        except Exception as e:
             if attempt < retry - 1:
-                print_log("WARN", f"Retrying... (Attempt {attempt + 1} of {retry})")
-                time.sleep(5)
+                logger.warning(f"Operation failed, retrying... ({attempt + 1}/{retry})")
+                time.sleep(2**attempt)  # Exponential backoff
             else:
-                print_log("ERROR", "Max retries reached. Operation failed.")
-                return None
-
-
-def get_build_dir(global_build_dir: str, build_config: Dict, cli_build_dir: str) -> str:
-    # Priority: CLI arg > individual build config > global config > current working directory
-    return (
-        cli_build_dir
-        or build_config.get("build_dir")
-        or global_build_dir
-        or os.getcwd()
-    )
+                logger.error(f"Operation failed after {retry} attempts: {str(e)}")
+                raise
 
 
 def build_image(
-    client: docker.DockerClient,
-    build_config: Dict,
-    global_config: Dict,
-    cli_build_dir: str,
+    client: docker.DockerClient, build: Dict, config: Dict, cli_build_dir: str = None
 ):
-    tag = build_config["tag"]
-    build_args = build_config["build_args"]
-    build_args["REGION"] = global_config["region"]
+    tag = build["tag"]
+    logger.info(f"Building image: {tag}")
+    build_dir = cli_build_dir or build.get("build_dir") or config.get("build_dir", ".")
+    logger.info(f"Using build directory: {build_dir}")
 
-    build_dir = get_build_dir(
-        global_config.get("build_dir"), build_config, cli_build_dir
-    )
-
-    print_log("INFO", f"Building image: {tag}")
-    print_log("INFO", f"Using build directory: {build_dir}")
-    image, _ = client.images.build(
-        path=build_dir, tag=tag, buildargs=build_args, nocache=True
-    )
-    print_log("SUCCESS", f"Successfully built image: {tag}")
-    return image
+    build_args = build.get("build_args", {})
+    try:
+        client.images.build(path=build_dir, tag=tag, buildargs=build_args)
+        logger.info(f"Successfully built image: {tag}")
+    except docker.errors.BuildError as e:
+        logger.error(f"Build failed for {tag}: {str(e)}")
+        raise
 
 
 def push_image(client: docker.DockerClient, tag: str, config: Dict):
-    docker_login(client, config)  # 只在推送时登录
-    print_log("INFO", f"Pushing image: {tag}")
-    for line in client.images.push(tag, stream=True, decode=True):
-        if "error" in line:
-            raise docker.errors.APIError(line["error"])
-    print_log("SUCCESS", f"Successfully pushed image: {tag}")
+    logger.info(f"Pushing image: {tag}")
+    try:
+        registry_type = config["upload"]["registry_type"]
+        if registry_type == "dockerhub":
+            client.images.push(tag)
+        elif registry_type == "ecr":
+            ecr_client = boto3.client("ecr", region_name=config["region"])
+            token = ecr_client.get_authorization_token()
+            username, password = (
+                base64.b64decode(token["authorizationData"][0]["authorizationToken"])
+                .decode()
+                .split(":")
+            )
+            registry = token["authorizationData"][0]["proxyEndpoint"]
+            client.login(username=username, password=password, registry=registry)
+            client.images.push(tag)
+        else:
+            raise ValueError(f"Unsupported registry type: {registry_type}")
+        logger.info(f"Successfully pushed image: {tag}")
+    except Exception as e:
+        logger.error(f"Push failed for {tag}: {str(e)}")
+        raise
 
 
 def delete_image(client: docker.DockerClient, tag: str):
-    print_log("INFO", f"Deleting image: {tag}")
+    logger.info(f"Deleting image: {tag}")
     try:
         client.images.remove(tag)
-        print_log("SUCCESS", f"Successfully deleted image: {tag}")
+        logger.info(f"Successfully deleted image: {tag}")
     except docker.errors.ImageNotFound:
-        print_log("WARN", f"Image not found: {tag}")
+        logger.warning(f"Image not found: {tag}")
+    except Exception as e:
+        logger.error(f"Delete failed for {tag}: {str(e)}")
+        raise
 
 
 def process_image(
@@ -143,11 +157,11 @@ def process_images_parallel(
                 try:
                     future.result()
                 except Exception as e:
-                    print_log("ERROR", f"An error occurred: {str(e)}")
+                    logger.error(f"An error occurred: {str(e)}")
                 if stop_flag.is_set():
                     break
         except KeyboardInterrupt:
-            print_log("WARN", "Received interrupt, stopping operations...")
+            logger.warning("Received interrupt, stopping operations...")
             stop_flag.set()
             executor.shutdown(wait=False)
             for future in futures:
@@ -169,11 +183,11 @@ def process_images_parallel(
                     try:
                         future.result()
                     except Exception as e:
-                        print_log("ERROR", f"An error occurred while pushing: {str(e)}")
+                        logger.error(f"An error occurred while pushing: {str(e)}")
                     if stop_flag.is_set():
                         break
             except KeyboardInterrupt:
-                print_log("WARN", "Received interrupt, stopping push operations...")
+                logger.warning("Received interrupt, stopping push operations...")
                 stop_flag.set()
                 executor.shutdown(wait=False)
                 for future in futures:
@@ -253,12 +267,12 @@ def main():
         }
         process_images_parallel(client, config, operations[args.command], args)
     except KeyboardInterrupt:
-        print_log("ERROR", "Operation canceled by user")
+        logger.error("Operation canceled by user")
     finally:
         client.close()
 
     if stop_flag.is_set():
-        print_log("WARN", "Some operations may have been interrupted")
+        logger.warning("Some operations may have been interrupted")
         sys.exit(1)
 
 
