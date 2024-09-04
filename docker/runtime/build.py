@@ -3,12 +3,13 @@ import yaml
 import docker
 import tempfile
 import shutil
+import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 
 class DockerImageBuilder:
     REGISTRY_PRESETS = {
-        'dockerhub': '',  # Docker Hub 不需要 registry 前缀
+        'dockerhub': '',
         'ghcr': 'ghcr.io',
         'acr': 'azurecr.io',
         'ecr': 'amazonaws.com',
@@ -112,6 +113,46 @@ class DockerImageBuilder:
 
         print(f"Completed {completed_builds}/{total_builds} builds.")
 
-if __name__ == "__main__":
-    builder = DockerImageBuilder()
+def parse_arguments():
+    parser = argparse.ArgumentParser(description="Docker Image Builder and Uploader")
+    parser.add_argument("-c", "--config", default="config.yaml", help="Path to the configuration file (default: config.yaml)")
+    parser.add_argument("-d", "--dockerfile", default="Dockerfile", help="Path to the Dockerfile (default: Dockerfile)")
+    parser.add_argument("--dry-run", action="store_true", help="Perform a dry run without actually building or uploading images")
+    parser.add_argument("--no-upload", action="store_true", help="Build images but do not upload them")
+    parser.add_argument("-v", "--verbose", action="store_true", help="Enable verbose output")
+    parser.add_argument("--max-concurrent", type=int, help="Maximum number of concurrent builds (overrides config file)")
+    parser.add_argument("--list-presets", action="store_true", help="List available registry presets")
+    return parser.parse_args()
+
+def main():
+    args = parse_arguments()
+
+    if args.list_presets:
+        print("Available registry presets:")
+        for preset in DockerImageBuilder.REGISTRY_PRESETS:
+            print(f"  - {preset}")
+        return
+
+    builder = DockerImageBuilder(dockerfile_path=args.dockerfile, config_path=args.config)
+
+    if args.verbose:
+        print(f"Using configuration file: {args.config}")
+        print(f"Using Dockerfile: {args.dockerfile}")
+
+    if args.dry_run:
+        print("Performing dry run:")
+        for build_config in builder.config['builds']:
+            print(f"  Would build: {build_config['tag']}")
+        return
+
+    if args.no_upload:
+        builder.upload_config['enabled'] = False
+        print("Upload disabled. Images will be built but not uploaded.")
+
+    if args.max_concurrent:
+        builder.config['max_concurrent_builds'] = args.max_concurrent
+
     builder.build_all()
+
+if __name__ == "__main__":
+    main()
