@@ -16,11 +16,7 @@ import base64
 import boto3
 
 init(autoreset=True)
-
-# 全局停止标志
 stop_flag = threading.Event()
-
-# 设置日志格式
 class ColoredFormatter(logging.Formatter):
     level_colors = {
         logging.DEBUG: Fore.CYAN,
@@ -44,14 +40,11 @@ class ColoredFormatter(logging.Formatter):
         formatter = logging.Formatter(log_fmt, datefmt="%Y-%m-%d %H:%M:%S")
         return formatter.format(record)
 
-# 设置主日志记录器
 main_logger = logging.getLogger("DockerScript")
 main_logger.setLevel(logging.INFO)
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(ColoredFormatter())
 main_logger.addHandler(console_handler)
-
-# 创建线程本地存储
 thread_local = threading.local()
 
 def get_thread_logger():
@@ -91,6 +84,7 @@ def retry_operation(operation: Callable, *args, retry: int = 3, logger=None, **k
                 raise
 
 def build_image(client: docker.DockerClient, build: Dict, config: Dict, cli_build_dir: str = None, logger=None):
+    logger = logger or get_thread_logger()
     tag = build['tag']
     logger.info(f"Building image: {tag}")
     build_dir = cli_build_dir or build.get('build_dir') or config.get('build_dir', '.')
@@ -105,6 +99,7 @@ def build_image(client: docker.DockerClient, build: Dict, config: Dict, cli_buil
         raise
 
 def push_image(client: docker.DockerClient, tag: str, config: Dict, logger=None):
+    logger = logger or get_thread_logger()
     logger.info(f"Pushing image: {tag}")
     try:
         registry_type = config['upload']['registry_type']
@@ -125,6 +120,7 @@ def push_image(client: docker.DockerClient, tag: str, config: Dict, logger=None)
         raise
 
 def delete_image(client: docker.DockerClient, tag: str, logger=None):
+    logger = logger or get_thread_logger()
     logger.info(f"Deleting image: {tag}")
     try:
         client.images.remove(tag)
@@ -165,7 +161,7 @@ def process_images_parallel(client: docker.DockerClient, config: Dict, operation
 
     if operation == build_image and config['upload']['auto_push'] and not stop_flag.is_set():
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = [executor.submit(push_image, client, build['tag'], config) for build in config['builds']]
+            futures = [executor.submit(push_image, client, build['tag'], config, get_thread_logger()) for build in config['builds']]
             try:
                 for future in as_completed(futures):
                     log_output = future.result()
