@@ -179,17 +179,51 @@ class DockerImageBuilder:
 
         self.console.print("[bold green]All builds completed.[/bold green]")
 
+    def delete_images(self):
+            deleted_images = []
+            for build_config in self.config['builds']:
+                tag = build_config['tag']
+                try:
+                    self.client.images.remove(tag, force=True)
+                    deleted_images.append(tag)
+                    self.console.print(f"[green]Successfully deleted image: {tag}[/green]")
+                except docker.errors.ImageNotFound:
+                    self.console.print(f"[yellow]Image not found: {tag}[/yellow]")
+                except Exception as e:
+                    self.console.print(f"[red]Error deleting image {tag}: {str(e)}[/red]")
+            
+            if deleted_images:
+                self.console.print(f"[bold green]Deleted {len(deleted_images)} image(s).[/bold green]")
+            else:
+                self.console.print("[yellow]No images were deleted.[/yellow]")
+
 def parse_arguments():
-    parser = argparse.ArgumentParser(description="Build Docker images based on configuration.")
+    parser = argparse.ArgumentParser(description="Build, upload, or delete Docker images based on configuration.")
     parser.add_argument('-d', '--dockerfile', default='Dockerfile', help='Path to the Dockerfile')
     parser.add_argument('-c', '--config', default='config.yaml', help='Path to the configuration file')
+    
+    subparsers = parser.add_subparsers(dest='command', help='Available commands')
+    
+    # Build command
+    build_parser = subparsers.add_parser('build', help='Build and optionally upload Docker images')
+    
+    # Delete command
+    delete_parser = subparsers.add_parser('delete', help='Delete built Docker images')
+    
     return parser.parse_args()
 
 def main():
     args = parse_arguments()
     try:
         builder = DockerImageBuilder(args.dockerfile, args.config)
-        builder.build_all()
+        
+        if args.command == 'build':
+            builder.build_all()
+        elif args.command == 'delete':
+            builder.delete_images()
+        else:
+            builder.console.print("[yellow]No command specified. Use 'build' or 'delete'.[/yellow]")
+    
     except Exception as e:
         console = Console()
         console.print("[bold red]An unexpected error occurred:[/bold red]")
