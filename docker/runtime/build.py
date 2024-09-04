@@ -1,311 +1,146 @@
-import os
-import yaml
-import docker
-import tempfile
-import shutil
+#!/usr/bin/env python3
 import argparse
-import signal
+import os
 import sys
 import time
-import re
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from rich.console import Console
-from rich.live import Live
-from rich.panel import Panel
-from rich.columns import Columns
-from rich.text import Text
-from rich.traceback import install as install_rich_traceback
+from typing import Dict, Callable
+from datetime import datetime
+import yaml
+import docker
+from colorama import init, Fore, Style, Back
 
-# Install rich traceback handler
-install_rich_traceback(show_locals=True)
+init(autoreset=True)
 
-
-class GracefulKiller:
-    kill_now = False
-
-    def __init__(self):
-        signal.signal(signal.SIGINT, self.exit_gracefully)
-        signal.signal(signal.SIGTERM, self.exit_gracefully)
-
-    def exit_gracefully(self, *args):
-        self.kill_now = True
-
-
-class DockerImageBuilder:
-    REGISTRY_PRESETS = {
-        "dockerhub": "",
-        "ghcr": "ghcr.io",
-        "acr": "azurecr.io",
-        "ecr": "amazonaws.com",
-        "gcr": "gcr.io",
+def print_log(level: str, message: str):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    level_colors = {
+        "INFO": f"{Fore.WHITE}{Back.BLUE}",
+        "SUCCESS": f"{Fore.WHITE}{Back.GREEN}",
+        "ERROR": f"{Fore.WHITE}{Back.RED}",
+        "WARN": f"{Fore.BLACK}{Back.YELLOW}"
     }
+    level_color = level_colors.get(level, Fore.WHITE)
+    print(f"{Fore.CYAN}[{timestamp}]{Style.RESET_ALL} {level_color}{level:^7}{Style.RESET_ALL} {message}")
 
-    def __init__(self, dockerfile_path="Dockerfile", config_path="config.yaml"):
-        self.dockerfile_path = dockerfile_path
-        self.config_path = config_path
-        self.client = docker.from_env()
-        self.config = self._load_config()
-        self.region = self.config.get("region", "global")
-        self.upload_config = self.config.get("upload", {})
-        self.killer = GracefulKiller()
-        self.console = Console()
+def load_config(config_file: str) -> Dict:
+    with open(config_file, 'r') as file:
+        return yaml.safe_load(file)
 
-    def _load_config(self):
+def docker_login(client: docker.DockerClient, config: Dict):
+    if config['upload']['registry_type'] == 'dockerhub':
         try:
-            with open(self.config_path, "r") as f:
-                return yaml.safe_load(f)
-        except Exception as e:
-            self.console.print(f"[bold red]Error loading configuration file:[/bold red] {str(e)}")
+            client.login(
+                username=config['upload']['username'],
+                password=config['upload']['password']
+            )
+            print_log("SUCCESS", "Successfully logged in to Docker Hub")
+        except docker.errors.APIError as e:
+            print_log("ERROR", f"Failed to log in to Docker Hub: {str(e)}")
             sys.exit(1)
 
-    def _prepare_build_context(self, build_config):
-        temp_dir = tempfile.mkdtemp()
-        shutil.copy2(self.dockerfile_path, temp_dir)
-        return temp_dir
-
-    def _parse_progress(self, line):
-        progress_pattern = r"(\d+(?:\.\d+)?[KMG]?B?)/(\d+(?:\.\d+)?[KMG]?B?)"
-        match = re.search(progress_pattern, line)
-        if match:
-            current, total = match.groups()
-            return self._convert_size_to_bytes(current), self._convert_size_to_bytes(total)
-        return None, None
-
-    def _convert_size_to_bytes(self, size_str):
-        units = {"K": 1024, "M": 1024**2, "G": 1024**3}
-        if size_str[-1] in units:
-            return int(float(size_str[:-1]) * units[size_str[-1]])
-        elif size_str.endswith("B"):
-            return int(float(size_str[:-1]))
-        else:
-            return int(float(size_str))
-
-    def _update_layer_progress(self, line, layer_tasks, progress):
-        if "Pulling from" in line["status"]:
-            layer_id = line["status"].split()[-1]
-            layer_tasks[layer_id] = progress.add_task(f"[magenta]Pulling {layer_id}", total=100)
-        elif "Pull complete" in line["status"]:
-            layer_id = line["status"].split()[0]
-            if layer_id in layer_tasks:
-                progress.update(layer_tasks[layer_id], completed=100)
-        if "progress" in line:
-            layer_id = line["id"]
-            if layer_id in layer_tasks:
-                current, total = self._parse_progress(line["progress"])
-                if current is not None and total is not None:
-                    progress.update(layer_tasks[layer_id], completed=current, total=total)
-
-    def build_all(self):
-        self.console = Console()
-        build_tasks = []
-
+def retry_operation(operation: Callable, *args, retry: int = 3, **kwargs):
+    for attempt in range(retry):
         try:
-            with Live(self.generate_output(build_tasks), refresh_per_second=10, console=self.console) as live:
-                with ThreadPoolExecutor(max_workers=self.config.get("max_concurrent_builds", 3)) as executor:
-                    futures = {executor.submit(self.build_image, build_config): build_config for build_config in self.config["builds"]}
-
-                    for future in as_completed(futures):
-                        if self.killer.kill_now:
-                            self.console.print("\n[yellow]Received interrupt signal. Stopping builds...[/yellow]")
-                            executor.shutdown(wait=False)
-                            return
-
-                        build_config = futures[future]
-                        result = future.result()
-                        if result:
-                            build_tasks.append(result)
-                        live.update(self.generate_output(build_tasks))
-
-            self.console.print("[bold green]All builds completed.[/bold green]")
-
-            if self.upload_config.get("auto_push", False):
-                self.push_images()
-        except Exception as e:
-            self.console.print(f"[bold red]An error occurred during build process:[/bold red] {str(e)}")
-            sys.exit(1)
-
-    def build_image(self, build_config):
-        context_path = self._prepare_build_context(build_config)
-        tag = build_config["tag"]
-        start_time = time.time()
-        logs = []
-
-        try:
-            build_args = build_config.get("build_args", {})
-            build_args["REGION"] = build_config.get("region", self.region)
-
-            for line in self.client.api.build(
-                path=context_path,
-                dockerfile=os.path.basename(self.dockerfile_path),
-                tag=tag,
-                buildargs=build_args,
-                rm=True,
-                decode=True,
-            ):
-                if self.killer.kill_now:
-                    return None
-
-                if "stream" in line:
-                    logs.append(line["stream"].strip())
-                elif "error" in line:
-                    raise Exception(line["error"])
-
-            end_time = time.time()
-            duration = end_time - start_time
-            return {"tag": tag, "status": "success", "duration": duration, "logs": logs}
-        except Exception as e:
-            end_time = time.time()
-            duration = end_time - start_time
-            self.console.print(f"[bold red]Error occurred while building {tag}:[/bold red]")
-            self.console.print_exception(show_locals=True)
-            return {"tag": tag, "status": "error", "duration": duration, "logs": logs + [str(e)]}
-        finally:
-            shutil.rmtree(context_path)
-
-    def push_images(self):
-        if not self.upload_config.get("enabled", False):
-            self.console.print("[yellow]Upload is not enabled in the configuration.[/yellow]")
-            return
-
-        upload_tasks = []
-
-        try:
-            with Live(self.generate_upload_output(upload_tasks), refresh_per_second=10, console=self.console) as live:
-                for build_config in self.config["builds"]:
-                    tag = build_config["tag"]
-                    task = {
-                        'tag': tag,
-                        'status': 'uploading',
-                        'start_time': time.time(),
-                        'logs': []
-                    }
-                    upload_tasks.append(task)
-                    live.update(self.generate_upload_output(upload_tasks))
-
-                    try:
-                        self._upload_image(tag, build_config, task)
-                        task['status'] = 'success'
-                    except docker.errors.ImageNotFound:
-                        task['status'] = 'error'
-                        task['logs'].append(f"Image not found: {tag}")
-                    except Exception as e:
-                        task['status'] = 'error'
-                        task['logs'].append(f"Error uploading {tag}: {str(e)}")
-
-                    task['end_time'] = time.time()
-                    live.update(self.generate_upload_output(upload_tasks))
-
-            self.console.print("[bold green]Upload process completed.[/bold green]")
-        except Exception as e:
-            self.console.print(f"[bold red]An error occurred during push process:[/bold red] {str(e)}")
-            sys.exit(1)
-
-    def _upload_image(self, tag, build_config, task):
-        repository = self.upload_config.get("repository", "")
-        if repository:
-            remote_tag = f"{repository}/{tag}"
-            self.client.images.get(tag).tag(remote_tag)
-            tag = remote_tag
-
-        for line in self.client.images.push(tag, stream=True, decode=True):
-            if 'status' in line:
-                task['logs'].append(line['status'])
-            elif 'error' in line:
-                raise Exception(line['error'])
-
-    def delete_images(self):
-        deleted_images = []
-        try:
-            for build_config in self.config["builds"]:
-                tag = build_config["tag"]
-                try:
-                    self.client.images.remove(tag, force=True)
-                    deleted_images.append(tag)
-                    self.console.print(f"[green]Successfully deleted image: {tag}[/green]")
-                except docker.errors.ImageNotFound:
-                    self.console.print(f"[yellow]Image not found: {tag}[/yellow]")
-                except Exception as e:
-                    self.console.print(f"[red]Error deleting image {tag}: {str(e)}[/red]")
-
-            if deleted_images:
-                self.console.print(f"[bold green]Deleted {len(deleted_images)} image(s).[/bold green]")
+            return operation(*args, **kwargs)
+        except docker.errors.APIError as e:
+            print_log("ERROR", f"Operation failed: {str(e)}")
+            if attempt < retry - 1:
+                print_log("WARN", f"Retrying... (Attempt {attempt + 1} of {retry})")
+                time.sleep(5)
             else:
-                self.console.print("[yellow]No images were deleted.[/yellow]")
-        except Exception as e:
-            self.console.print(f"[bold red]An error occurred during delete process:[/bold red] {str(e)}")
-            sys.exit(1)
+                print_log("ERROR", "Max retries reached. Operation failed.")
+                return None
 
-    def generate_output(self, build_tasks):
-        columns = []
-        for task in build_tasks:
-            if task["status"] == "success":
-                text = Text(f"Successful build {task['tag']} -> {self.format_duration(task['duration'])}", style="green")
-            else:
-                text = Text(f"Failed build {task['tag']} -> {self.format_duration(task['duration'])}", style="red")
-            columns.append(text)
+def get_build_dir(global_build_dir: str, build_config: Dict, cli_build_dir: str) -> str:
+    # Priority: CLI arg > individual build config > global config > current working directory
+    return cli_build_dir or build_config.get('build_dir') or global_build_dir or os.getcwd()
 
-        active_builds = [task for task in build_tasks if task["status"] not in ["success", "error"]]
-        for task in active_builds:
-            text = Text(f"Building {task['tag']} -> {self.format_duration(time.time() - task['start_time'])}\n")
-            text.append("\n".join(task["logs"][-5:]))  # Show last 5 log lines
-            columns.append(text)
-
-        return Panel(Columns(columns))
+def build_image(client: docker.DockerClient, build_config: Dict, global_config: Dict, cli_build_dir: str):
+    tag = build_config['tag']
+    build_args = build_config['build_args']
+    build_args['REGION'] = global_config['region']
     
-    def generate_upload_output(self, upload_tasks):
-        columns = []
-        for task in upload_tasks:
-            if task['status'] == 'success':
-                text = Text(f"Successful upload {task['tag']} -> {self.format_duration(task['end_time'] - task['start_time'])}", style="green")
-            elif task['status'] == 'error':
-                text = Text(f"Failed upload {task['tag']} -> {self.format_duration(task['end_time'] - task['start_time'])}", style="red")
-            else:
-                text = Text(f"Uploading {task['tag']} -> {self.format_duration(time.time() - task['start_time'])}\n")
-                text.append("\n".join(task['logs'][-5:]))  # Show last 5 log lines
-            columns.append(text)
-        
-        return Panel(Columns(columns))
+    build_dir = get_build_dir(global_config.get('build_dir'), build_config, cli_build_dir)
 
-    def format_duration(self, seconds):
-        minutes, seconds = divmod(int(seconds), 60)
-        hours, minutes = divmod(minutes, 60)
-        return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+    print_log("INFO", f"Building image: {tag}")
+    print_log("INFO", f"Using build directory: {build_dir}")
+    image, _ = client.images.build(
+        path=build_dir,
+        tag=tag,
+        buildargs=build_args,
+        nocache=True
+    )
+    print_log("SUCCESS", f"Successfully built image: {tag}")
+    return image
 
+def push_image(client: docker.DockerClient, tag: str):
+    print_log("INFO", f"Pushing image: {tag}")
+    for line in client.images.push(tag, stream=True, decode=True):
+        if 'error' in line:
+            raise docker.errors.APIError(line['error'])
+    print_log("SUCCESS", f"Successfully pushed image: {tag}")
 
-def parse_arguments():
-    parser = argparse.ArgumentParser(description="Build, upload, push, or delete Docker images based on configuration.")
-    parser.add_argument("-d", "--dockerfile", default="Dockerfile", help="Path to the Dockerfile")
-    parser.add_argument("-c", "--config", default="config.yaml", help="Path to the configuration file")
+def delete_image(client: docker.DockerClient, tag: str):
+    print_log("INFO", f"Deleting image: {tag}")
+    try:
+        client.images.remove(tag)
+        print_log("SUCCESS", f"Successfully deleted image: {tag}")
+    except docker.errors.ImageNotFound:
+        print_log("WARN", f"Image not found: {tag}")
 
-    subparsers = parser.add_subparsers(dest="command", help="Available commands")
-
-    subparsers.add_parser("build", help="Build and optionally upload Docker images")
-    subparsers.add_parser("push", help="Push built Docker images to registry")
-    subparsers.add_parser("delete", help="Delete built Docker images")
-
-    return parser.parse_args()
-
+def process_images(client: docker.DockerClient, config: Dict, operation: Callable, args: argparse.Namespace):
+    for build in config['builds']:
+        retry_operation(operation, client, build, config, args.build_dir, retry=args.retry)
+        if operation == build_image and config['upload']['auto_push']:
+            retry_operation(push_image, client, build['tag'], retry=args.retry)
 
 def main():
-    args = parse_arguments()
+    parser = argparse.ArgumentParser(
+        description="Docker image management script for Minecraft servers",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="Examples:\n  %(prog)s build\n  %(prog)s push\n  %(prog)s delete"
+    )
+    parser.add_argument("-r", "--retry", type=int, default=3, help="Number of retries for failed operations (default: 3)")
+    parser.add_argument("-c", "--config", default="config.yaml", help="Path to the configuration file (default: config.yaml)")
+    parser.add_argument("-d", "--build-dir", help="Override the build directory for all images")
+    parser.add_argument("--region", help="Override the region specified in the config file")
+    parser.add_argument("--username", help="Override the username specified in the config file")
+    parser.add_argument("--password", help="Override the password specified in the config file")
+    
+    subparsers = parser.add_subparsers(title="Commands", dest="command", required=True, metavar="COMMAND")
+
+    subparsers.add_parser("build", help="Build all images")
+    subparsers.add_parser("push", help="Push all images")
+    subparsers.add_parser("delete", help="Delete all images")
+
+    args = parser.parse_args()
+
+    config = load_config(args.config)
+
+    # Override config values with command line arguments if provided
+    if args.region:
+        config['region'] = args.region
+    if args.username:
+        config['upload']['username'] = args.username
+    if args.password:
+        config['upload']['password'] = args.password
+
+    client = docker.from_env()
+
+    docker_login(client, config)
+
     try:
-        builder = DockerImageBuilder(args.dockerfile, args.config)
-
-        if args.command == "build":
-            builder.build_all()
-        elif args.command == "push":
-            builder.push_images()
-        elif args.command == "delete":
-            builder.delete_images()
-        else:
-            builder.console.print("[yellow]No command specified. Use 'build', 'push', or 'delete'.[/yellow]")
-
-    except Exception as e:
-        console = Console()
-        console.print("[bold red]An unexpected error occurred:[/bold red]")
-        console.print_exception(show_locals=True)
+        operations = {
+            "build": build_image,
+            "push": lambda client, build, _, cli_build_dir: push_image(client, build['tag']),
+            "delete": lambda client, build, _, cli_build_dir: delete_image(client, build['tag'])
+        }
+        process_images(client, config, operations[args.command], args)
+    except KeyboardInterrupt:
+        print_log("ERROR", "Operation canceled by user")
         sys.exit(1)
-
+    finally:
+        client.close()
 
 if __name__ == "__main__":
     main()

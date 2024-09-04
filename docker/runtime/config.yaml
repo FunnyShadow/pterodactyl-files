@@ -1,5 +1,5 @@
-max_concurrent_builds: 3
 region: "global"
+build_dir: "build"
 
 upload:
   auto_push: true
