@@ -80,7 +80,7 @@ ARG MCDR_REQUIREMENT
 COPY --from=python-builder /usr/local /usr/local
 
 # Install MCDR and requirements if TYPE=mcdr
-COPY requirements.txt /tmp/requirements.txt
+COPY mcdr-requirements.txt /tmp/requirements.txt
 RUN if [ "${TYPE}" = "mcdr" ]; then \
     # Upgrade pip and install requirements
     python3 -m pip install --no-cache-dir -U pip; \
