@@ -7,6 +7,14 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 
 class DockerImageBuilder:
+    REGISTRY_PRESETS = {
+        'dockerhub': '',  # Docker Hub 不需要 registry 前缀
+        'ghcr': 'ghcr.io',
+        'acr': 'azurecr.io',
+        'ecr': 'amazonaws.com',
+        'gcr': 'gcr.io',
+    }
+
     def __init__(self, dockerfile_path='Dockerfile', config_path='config.yaml'):
         self.dockerfile_path = dockerfile_path
         self.config_path = config_path
@@ -46,17 +54,32 @@ class DockerImageBuilder:
         finally:
             shutil.rmtree(context_path)
 
+    def get_registry_url(self):
+        registry_type = self.upload_config.get('registry_type', 'custom').lower()
+        if registry_type == 'custom':
+            return self.upload_config.get('registry', '')
+        elif registry_type in self.REGISTRY_PRESETS:
+            return self.REGISTRY_PRESETS[registry_type]
+        else:
+            tqdm.write(f"Unknown registry type: {registry_type}. Using custom registry.")
+            return self.upload_config.get('registry', '')
+
     def upload_image(self, image, build_config):
         if not self.upload_config.get('enabled', False):
             return
 
-        registry = self.upload_config.get('registry')
+        registry_url = self.get_registry_url()
         username = self.upload_config.get('username')
         password = self.upload_config.get('password')
 
-        if registry and username and password:
-            self.client.login(username=username, password=password, registry=registry)
-            tag = f"{registry}/{build_config['tag']}"
+        if username and password:
+            self.client.login(username=username, password=password, registry=registry_url)
+            
+            if registry_url:
+                tag = f"{registry_url}/{build_config['tag']}"
+            else:
+                tag = build_config['tag']  # For Docker Hub
+            
             image.tag(tag)
             push_logs = self.client.images.push(tag)
             tqdm.write(f"Uploaded image {tag}")
