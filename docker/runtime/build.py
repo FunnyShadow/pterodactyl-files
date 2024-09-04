@@ -6,12 +6,13 @@ import shutil
 import argparse
 import signal
 import sys
-import time
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from rich.console import Console
 from rich.live import Live
 from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn
+from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn, TaskID
+from rich.table import Table
 
 class GracefulKiller:
     kill_now = False
@@ -55,13 +56,29 @@ class DockerImageBuilder:
             shutil.copytree(resources_path, os.path.join(temp_dir, 'resources'))
         return temp_dir
 
+    def parse_progress(self, line):
+        progress_pattern = r'(\d+(?:\.\d+)?[KMG]?B?)/(\d+(?:\.\d+)?[KMG]?B?)'
+        match = re.search(progress_pattern, line)
+        if match:
+            current, total = match.groups()
+            return self.convert_size_to_bytes(current), self.convert_size_to_bytes(total)
+        return None, None
+
+    def convert_size_to_bytes(self, size_str):
+        units = {'K': 1024, 'M': 1024**2, 'G': 1024**3}
+        if size_str[-1] in units:
+            return int(float(size_str[:-1]) * units[size_str[-1]])
+        elif size_str.endswith('B'):
+            return int(float(size_str[:-1]))
+        else:
+            return int(float(size_str))
+
     def build_image(self, build_config):
         context_path = self.prepare_build_context(build_config)
         try:
             build_args = build_config.get('build_args', {})
             build_args['REGION'] = build_config.get('region', self.region)
 
-            image = None
             for line in self.client.api.build(
                 path=context_path,
                 dockerfile=os.path.basename(self.dockerfile_path),
@@ -71,7 +88,11 @@ class DockerImageBuilder:
                 decode=True
             ):
                 if 'stream' in line:
-                    yield line['stream'].strip()
+                    yield 'stream', line['stream'].strip()
+                elif 'status' in line:
+                    yield 'status', line['status']
+                    if 'progress' in line:
+                        yield 'progress', line['progress']
                 elif 'error' in line:
                     raise Exception(line['error'])
 
@@ -81,32 +102,45 @@ class DockerImageBuilder:
             shutil.rmtree(context_path)
 
     def build_and_upload(self, build_config, progress):
-        task = progress.add_task(f"[cyan]Building {build_config['tag']}", total=100)
+        task_id = progress.add_task(f"[cyan]Building {build_config['tag']}", total=100)
+        layer_tasks = {}
+        
         try:
-            for output in self.build_image(build_config):
-                progress.update(task, advance=1, description=f"[cyan]Building {build_config['tag']}: {output}")
+            for output_type, output in self.build_image(build_config):
                 if self.killer.kill_now:
                     return None
 
-            progress.update(task, description=f"[green]Built {build_config['tag']}")
+                if output_type == 'stream':
+                    progress.update(task_id, description=f"[cyan]Building {build_config['tag']}: {output}")
+                elif output_type == 'status':
+                    if 'Pulling from' in output:
+                        layer_id = output.split()[-1]
+                        layer_tasks[layer_id] = progress.add_task(f"[magenta]Pulling {layer_id}", total=100)
+                    elif 'Pull complete' in output:
+                        layer_id = output.split()[0]
+                        if layer_id in layer_tasks:
+                            progress.update(layer_tasks[layer_id], completed=100)
+                elif output_type == 'progress':
+                    layer_id = output.split()[0]
+                    if layer_id in layer_tasks:
+                        current, total = self.parse_progress(output)
+                        if current is not None and total is not None:
+                            progress.update(layer_tasks[layer_id], completed=current, total=total)
+
+            progress.update(task_id, description=f"[green]Built {build_config['tag']}", completed=100)
 
             if self.upload_config.get('enabled', False):
-                progress.update(task, description=f"[cyan]Uploading {build_config['tag']}")
+                upload_task = progress.add_task(f"[cyan]Uploading {build_config['tag']}", total=100)
                 self.upload_image(self.client.images.get(build_config['tag']), build_config)
-                progress.update(task, description=f"[green]Uploaded {build_config['tag']}")
+                progress.update(upload_task, completed=100, description=f"[green]Uploaded {build_config['tag']}")
 
-            progress.update(task, completed=100)
             return build_config['tag']
         except Exception as e:
-            progress.update(task, description=f"[red]Error: {build_config['tag']} - {str(e)}")
+            progress.update(task_id, description=f"[red]Error: {build_config['tag']} - {str(e)}")
             return None
 
     def build_all(self):
-        total_builds = len(self.config['builds'])
-        completed_builds = 0
-
         progress = Progress(
-            SpinnerColumn(),
             TextColumn("[progress.description]{task.description}"),
             BarColumn(),
             TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
@@ -117,8 +151,6 @@ class DockerImageBuilder:
             with ThreadPoolExecutor(max_workers=self.config.get('max_concurrent_builds', 3)) as executor:
                 futures = {executor.submit(self.build_and_upload, build_config, progress): build_config for build_config in self.config['builds']}
                 
-                overall_task = progress.add_task(f"[bold blue]Overall Progress", total=total_builds)
-                
                 for future in as_completed(futures):
                     if self.killer.kill_now:
                         self.console.print("\n[yellow]Received interrupt signal. Stopping builds...[/yellow]")
@@ -127,10 +159,8 @@ class DockerImageBuilder:
 
                     build_config = futures[future]
                     result = future.result()
-                    completed_builds += 1
-                    progress.update(overall_task, advance=1)
 
-        self.console.print(f"[bold green]Completed {completed_builds}/{total_builds} builds.[/bold green]")
+        self.console.print("[bold green]All builds completed.[/bold green]")
 
 
 def parse_arguments():
