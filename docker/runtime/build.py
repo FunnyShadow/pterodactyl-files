@@ -41,6 +41,18 @@ def load_config(config_file):
 
 
 # Logging
+SUCCESS = 25
+logging.addLevelName(SUCCESS, "SUCCESS")
+
+
+def success(self, message, *args, **kwargs):
+    if self.isEnabledFor(SUCCESS):
+        self._log(SUCCESS, message, args, **kwargs)
+
+
+logging.Logger.success = success
+
+
 def log_worker():
     while True:
         log_entry = log_queue.get()
@@ -65,14 +77,15 @@ def get_task_name():
 def format_log(func):
     @wraps(func)
     def wrapper(message, level="debug"):
-        if getattr(logging, level.upper()) >= log_level:
+        log_level_num = getattr(logging, level.upper(), logging.DEBUG)
+        if log_level_num >= log_level:
             timestamp = datetime.now().strftime("%Y-%m-%d [#66ccff]/ [white]%H:%M:%S")
             level_colors = {
                 "debug": "dim white",
                 "info": "bold blue",
-                "error": "bold red",
                 "success": "bold green",
                 "warning": "bold yellow",
+                "error": "bold red",
             }
             level_text = level.upper().rjust(7)
             task_name = get_task_name()
