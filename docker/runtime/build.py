@@ -20,6 +20,12 @@ log_lock = threading.Lock()
 error_summary = []
 error_summary_lock = threading.Lock()
 
+def find_config_file():
+    for filename in ['config.yml', 'config.yaml']:
+        if os.path.exists(filename):
+            return filename
+    return None
+
 def load_config(config_file):
     with open(config_file, 'r') as f:
         return yaml.safe_load(f)
@@ -43,7 +49,7 @@ def build_image(build_config, global_config, progress, task_id):
     tag = build_config['tag']
     build_type = build_config.get('build_type', 'vanilla')
     region = build_config.get('region', global_config.get('region', 'global'))
-    build_dir = build_config.get('build_dir', global_config.get('build_dir', 'build'))
+    build_dir = build_config.get('build_dir', global_config.get('build_dir', '.'))
     build_args = build_config.get('build_args', {})
     max_retries = global_config.get('max_retries', 3)
     retry_delay = global_config.get('retry_delay', 5)
@@ -184,7 +190,7 @@ def print_error_summary():
 
 def main():
     parser = argparse.ArgumentParser(description="Docker image builder and manager")
-    parser.add_argument('-c', '--config', default='config.yaml', help='Path to the configuration file')
+    parser.add_argument('-c', '--config', help='Path to the configuration file')
     subparsers = parser.add_subparsers(dest='action', required=True)
 
     build_parser = subparsers.add_parser('build', help='Build Docker images')
@@ -207,8 +213,16 @@ def main():
 
     args = parser.parse_args()
 
+    if args.config:
+        config_file = args.config
+    else:
+        config_file = find_config_file()
+        if not config_file:
+            log("No configuration file found. Please provide a config file using -c or --config option.", "error")
+            sys.exit(1)
+
     try:
-        config = load_config(args.config)
+        config = load_config(config_file)
     except Exception as e:
         log(f"Failed to load configuration: {str(e)}", "error")
         sys.exit(1)
