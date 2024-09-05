@@ -4,6 +4,7 @@ retry_delay: 5
 
 region: "china"
 build_dir: "build"
+log_level: INFO
 
 upload:
   auto_push: true
