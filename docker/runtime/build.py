@@ -23,14 +23,12 @@ thread_local = threading.local()
 sigint_count = 0
 log_level = logging.INFO
 
-
 # Config
 def find_config_file():
     for filename in ["config.yml", "config.yaml"]:
         if os.path.exists(filename):
             return filename
     return None
-
 
 def load_config(config_file):
     with open(config_file, "r") as f:
@@ -39,19 +37,15 @@ def load_config(config_file):
     log_level = getattr(logging, config.get("log_level", "INFO").upper(), logging.INFO)
     return config
 
-
 # Logging
 SUCCESS = 25
 logging.addLevelName(SUCCESS, "SUCCESS")
 
-
 def success(self, message, *args, **kwargs):
     if self.isEnabledFor(SUCCESS):
-        self._log(SUCCESS, message, args, **kwargs)
-
+        self._log(SUCCESS, message, args, ** kwargs)
 
 logging.Logger.success = success
-
 
 def log_worker():
     while True:
@@ -61,18 +55,14 @@ def log_worker():
         console.print(log_entry, soft_wrap=True)
         log_queue.task_done()
 
-
 log_thread = threading.Thread(target=log_worker, daemon=True)
 log_thread.start()
-
 
 def set_task_name(name):
     thread_local.task_name = name
 
-
 def get_task_name():
     return getattr(thread_local, "task_name", "Unknown")
-
 
 def format_log(func):
     @wraps(func)
@@ -98,16 +88,13 @@ def format_log(func):
 
     return wrapper
 
-
 @format_log
 def log(message, level="debug"):
     pass
 
-
 def cleanup_logging():
     log_queue.put(None)
     log_thread.join()
-
 
 # Image Building
 def build_image(build_config, global_config):
@@ -153,7 +140,6 @@ def build_image(build_config, global_config):
             else:
                 return False
 
-
 # Image pushing
 def push_image(tag, config):
     set_task_name(tag)
@@ -184,7 +170,6 @@ def push_image(tag, config):
             else:
                 return False
 
-
 # Image deleting
 def delete_image(tag, config):
     set_task_name(tag)
@@ -209,7 +194,6 @@ def delete_image(tag, config):
         log(f"Failed to delete image {tag}: {str(e)}", "error")
         return False
 
-
 # Parallel tasks
 def run_tasks(config, action, tags=None):
     max_workers = config.get("max_parallel_tasks", 5)
@@ -222,19 +206,17 @@ def run_tasks(config, action, tags=None):
         if action == "build":
             futures = [executor.submit(build_image, build, config) for build in builds]
         elif action == "push":
-            futures = [
-                executor.submit(push_image, build["tag"], config) for build in builds
-            ]
+            futures = [executor.submit(push_image, build["tag"], config) for build in builds]
         elif action == "delete":
-            futures = [
-                executor.submit(delete_image, build["tag"], config) for build in builds
-            ]
+            futures = [executor.submit(delete_image, build["tag"], config) for build in builds]
 
         try:
+            results = []
             for future in concurrent.futures.as_completed(futures):
                 if stop_event.is_set():
                     break
-                future.result()
+                results.append(future.result())
+            return all(results)
         except KeyboardInterrupt:
             stop_event.set()
         finally:
@@ -247,7 +229,7 @@ def run_tasks(config, action, tags=None):
 
     if stop_event.is_set():
         log("Graceful shutdown completed.", "debug")
-
+    return False
 
 # Signal handling
 def signal_handler(signum, frame):
@@ -257,70 +239,35 @@ def signal_handler(signum, frame):
     set_task_name("Signal Handler")
 
     if sigint_count == 1:
-        log(
-            "Received interrupt signal. Attempting graceful shutdown. Press Ctrl+C again to force quit.",
-            "warning",
-        )
+        log("Received interrupt signal. Attempting graceful shutdown. Press Ctrl+C again to force quit.", "warning")
         stop_event.set()
     else:
         log("Received second interrupt signal. Forcing immediate shutdown.", "error")
         os._exit(1)
 
-
 def main():
     parser = argparse.ArgumentParser(description="Docker image builder and manager")
     parser.add_argument("-c", "--config", help="Path to the configuration file")
-    parser.add_argument(
-        "--log-level",
-        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
-        default="INFO",
-        help="Set the logging level",
-    )
+    parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING", "ERROR"], default="INFO", help="Set the logging level")
     subparsers = parser.add_subparsers(dest="action", required=True)
 
     build_parser = subparsers.add_parser("build", help="Build Docker images")
-    build_parser.add_argument(
-        "-t", "--tags", nargs="+", help="Specific image tags to build"
-    )
-    build_parser.add_argument(
-        "-r",
-        "--region",
-        choices=["global", "china"],
-        help="Specify the region for building",
-    )
+    build_parser.add_argument("-t", "--tags", nargs="+", help="Specific image tags to build")
+    build_parser.add_argument("-r", "--region", choices=["global", "china"], help="Specify the region for building")
     build_parser.add_argument("-d", "--build-dir", help="Specify the build directory")
-    build_parser.add_argument(
-        "-a",
-        "--build-arg",
-        action="append",
-        nargs=2,
-        metavar=("KEY", "VALUE"),
-        help="Set a build-time variable",
-    )
-    build_parser.add_argument(
-        "--no-cache",
-        action="store_true",
-        help="Do not use cache when building the image",
-    )
+    build_parser.add_argument("-a", "--build-arg", action="append", nargs=2, metavar=("KEY", "VALUE"), help="Set a build-time variable")
+    build_parser.add_argument("--no-cache", action="store_true", help="Do not use cache when building the image")
 
     push_parser = subparsers.add_parser("push", help="Push Docker images")
-    push_parser.add_argument(
-        "-t", "--tags", nargs="+", help="Specific image tags to push"
-    )
+    push_parser.add_argument("-t", "--tags", nargs="+", help="Specific image tags to push")
     push_parser.add_argument("-u", "--username", help="Docker registry username")
     push_parser.add_argument("-p", "--password", help="Docker registry password")
     push_parser.add_argument("--registry", help="Specify a custom registry URL")
 
     delete_parser = subparsers.add_parser("delete", help="Delete Docker images")
-    delete_parser.add_argument(
-        "-t", "--tags", nargs="+", help="Specific image tags to delete"
-    )
-    delete_parser.add_argument(
-        "-f", "--force", action="store_true", help="Force removal of the image"
-    )
-    delete_parser.add_argument(
-        "--prune", action="store_true", help="Remove all dangling images after deletion"
-    )
+    delete_parser.add_argument("-t", "--tags", nargs="+", help="Specific image tags to delete")
+    delete_parser.add_argument("-f", "--force", action="store_true", help="Force removal of the image")
+    delete_parser.add_argument("--prune", action="store_true", help="Remove all dangling images after deletion")
 
     args = parser.parse_args()
 
@@ -332,10 +279,7 @@ def main():
     else:
         config_file = find_config_file()
         if not config_file:
-            log(
-                "No configuration file found. Please provide a config file using -c or --config option.",
-                "error",
-            )
+            log("No configuration file found. Please provide a config file using -c or --config option.", "error")
             cleanup_logging()
             sys.exit(1)
 
@@ -353,49 +297,42 @@ def main():
         if args.build_dir:
             config["build_dir"] = args.build_dir
         if args.build_arg:
-            config["build_args"] = dict(args.build_arg)
+            config.setdefault("build_args", {}).update(dict(args.build_arg))
         config["no_cache"] = args.no_cache
     elif args.action == "push":
         if args.username:
-            config["upload"]["username"] = args.username
+            config.setdefault("upload", {})["username"] = args.username
         if args.password:
-            config["upload"]["password"] = args.password
+            config.setdefault("upload", {})["password"] = args.password
         if args.registry:
-            config["upload"]["registry"] = args.registry
+            config.setdefault("upload", {})["registry"] = args.registry
     elif args.action == "delete":
         config["force_delete"] = args.force
         config["prune_after_delete"] = args.prune
 
     signal.signal(signal.SIGINT, signal_handler)
 
-    all_tasks_completed = False
-
     try:
-        run_tasks(config, args.action, args.tags)
-        all_tasks_completed = True
+        success = run_tasks(config, args.action, args.tags)
     except KeyboardInterrupt:
-        pass
+        success = False
 
     if stop_event.is_set():
-        log(
-            "Tasks were interrupted. Attempting to finish ongoing operations...",
-            "warning",
-        )
+        log("Tasks were interrupted. Attempting to finish ongoing operations...", "warning")
         time.sleep(5)
-    elif all_tasks_completed:
-        log("All tasks completed.", "success")
+    elif success:
+        log("All tasks completed successfully.", "success")
+    else:
+        log("Some tasks failed or were interrupted.", "error")
 
     cleanup_logging()
 
     if sigint_count > 0:
         sys.exit(1)
-    elif all_tasks_completed:
+    elif success:
         sys.exit(0)
     else:
         sys.exit(2)
 
-
 if __name__ == "__main__":
-    log_thread = threading.Thread(target=log_worker, daemon=True)
-    log_thread.start()
     main()
