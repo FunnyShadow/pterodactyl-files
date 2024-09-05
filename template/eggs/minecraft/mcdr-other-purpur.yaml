@@ -11,7 +11,7 @@ docker_images:
   'Java 21 | MCDR 2.13': 'bluefunny/minecraft:mcdr-j21'
   'Java 17 | MCDR 2.13': 'bluefunny/minecraft:mcdr-j17'
   'Java 11 | MCDR 2.13': 'bluefunny/minecraft:mcdr-j11'
-  'Java 8 | MCDR 2.10': 'bluefunny/minecraft:mcdr-j8'
+  'Java 8 | MCDR 2.13': 'bluefunny/minecraft:mcdr-j8'
 file_denylist: []
 startup: python3.12 -m mcdreforged
 config:
@@ -109,7 +109,7 @@ variables:
     用于指定运行该服务器所需的最大内存, 单位为 MB
     PS: 此项仅供创建服务器时使用, 用户无法查看或修改
   env_variable: MAX_MEM
-  default_value: '870'
+  default_value: '1024'
   user_viewable: false
   user_editable: false
   rules: required|integer
@@ -119,7 +119,7 @@ variables:
     用于指定运行该服务器所需的最小内存, 单位为 MB
     PS: 此项仅供创建服务器时使用, 用户无法查看或修改
   env_variable: MIN_MEM
-  default_value: '870'
+  default_value: '1024'
   user_viewable: false
   user_editable: false
   rules: required|integer
