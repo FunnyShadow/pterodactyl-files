@@ -68,12 +68,16 @@ def format_log(func):
             "warning": "bold yellow",
         }
         level_text = level.upper().rjust(7)
-        task_name = get_task_name().ljust(25)
+        task_name = get_task_name()
+        if len(task_name) > 25:
+            task_name = task_name[:22] + "..."
+        task_name = task_name.ljust(25)
 
         formatted_message = f"[#66ccff]{timestamp}[/] [green]|[/] [purple]{task_name}[/] [green]|[/] [{level_colors[level]}]{level_text}[/] [yellow]->[/] {message}"
         log_queue.put(formatted_message)
 
     return wrapper
+
 
 
 @format_log
