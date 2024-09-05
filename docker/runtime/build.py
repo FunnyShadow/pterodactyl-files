@@ -9,9 +9,6 @@ import time
 import yaml
 import queue
 from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskID
-from rich.panel import Panel
-from rich.table import Table
 from datetime import datetime
 from functools import wraps
 
@@ -22,8 +19,6 @@ stop_event = threading.Event()
 log_lock = threading.Lock()
 log_queue = queue.Queue()
 thread_local = threading.local()
-error_summary = []
-error_summary_lock = threading.Lock()
 sigint_count = 0
 
 
@@ -65,7 +60,7 @@ def get_task_name():
 def format_log(func):
     @wraps(func)
     def wrapper(message, level="info"):
-        timestamp = datetime.now().strftime("%Y-%m-%d [#66ccff]/ [/]%H:%M:%S")
+        timestamp = datetime.now().strftime("%Y-%m-%d [#66ccff]/ [white]%H:%M:%S")
         level_colors = {
             "info": "bold blue",
             "error": "bold red",
@@ -75,7 +70,7 @@ def format_log(func):
         level_text = level.upper().rjust(7)
         task_name = get_task_name().ljust(25)
 
-        formatted_message = f"[#66ccff]{timestamp}[/] [green]|[/] [cyan]{task_name}[/] [green]|[/] [{level_colors[level]}]{level_text}[/] [yellow]->[/] {highlight_keywords(message)}"
+        formatted_message = f"[#66ccff]{timestamp}[/] [green]|[/] [purple]{task_name}[/] [green]|[/] [{level_colors[level]}]{level_text}[/] [yellow]->[/] {message}"
         log_queue.put(formatted_message)
 
     return wrapper
@@ -86,45 +81,13 @@ def log(message, level="info"):
     pass
 
 
-def highlight_keywords(message):
-    keywords = {
-        "build": "cyan",
-        "push": "magenta",
-        "delete": "red",
-        "image": "green",
-        "successfully": "bold green",
-        "failed": "bold red",
-        "retrying": "yellow",
-    }
-
-    for keyword, color in keywords.items():
-        message = message.replace(keyword, f"[{color}]{keyword}[/]")
-
-    return message
-
-
 def cleanup_logging():
     log_queue.put(None)
     log_thread.join()
 
 
-# Error Summary
-def add_to_error_summary(message):
-    with error_summary_lock:
-        error_summary.append(message)
-
-
-def print_error_summary():
-    if error_summary:
-        console.print("\n[bold red]Error Summary:[/bold red]")
-        for error in error_summary:
-            console.print(f"- {error}")
-    else:
-        console.print("\n[bold green]No errors occurred during execution.[/bold green]")
-
-
 # Image Building
-def build_image(build_config, global_config, progress, task_id):
+def build_image(build_config, global_config):
     set_task_name(build_config["tag"])
     tag = build_config["tag"]
     build_type = build_config.get("build_type", "vanilla")
@@ -157,7 +120,6 @@ def build_image(build_config, global_config, progress, task_id):
             for line in logs:
                 if "stream" in line:
                     log(line["stream"].strip())
-                progress.update(task_id, advance=1)
             log(f"Successfully built image: {tag}", "success")
             return True
         except Exception as e:
@@ -166,9 +128,6 @@ def build_image(build_config, global_config, progress, task_id):
                 log(f"Retrying in {retry_delay} seconds...", "warning")
                 time.sleep(retry_delay)
             else:
-                add_to_error_summary(
-                    f"Failed to build image {tag} after {max_retries} attempts: {str(e)}"
-                )
                 return False
 
 
@@ -200,39 +159,32 @@ def push_image(tag, config):
                 log(f"Retrying in {retry_delay} seconds...", "warning")
                 time.sleep(retry_delay)
             else:
-                add_to_error_summary(
-                    f"Failed to push image {tag} after {max_retries} attempts: {str(e)}"
-                )
                 return False
 
 
 # Image deleting
 def delete_image(tag, config):
     set_task_name(tag)
-    max_retries = config.get("max_retries", 3)
-    retry_delay = config.get("retry_delay", 5)
     force = config.get("force_delete", False)
     prune = config.get("prune_after_delete", False)
 
-    for attempt in range(max_retries):
-        try:
-            log(f"Deleting image: {tag} (Attempt {attempt + 1}/{max_retries})")
-            client.images.remove(tag, force=force)
-            log(f"Successfully deleted image: {tag}", "success")
-            if prune:
-                client.images.prune()
-                log("Pruned dangling images", "info")
-            return True
-        except Exception as e:
-            log(f"Failed to delete image {tag}: {str(e)}", "error")
-            if attempt < max_retries - 1:
-                log(f"Retrying in {retry_delay} seconds...", "warning")
-                time.sleep(retry_delay)
-            else:
-                add_to_error_summary(
-                    f"Failed to delete image {tag} after {max_retries} attempts: {str(e)}"
-                )
-                return False
+    try:
+        # Check if the image exists
+        client.images.get(tag)
+
+        log(f"Deleting image: {tag}")
+        client.images.remove(tag, force=force)
+        log(f"Successfully deleted image: {tag}", "success")
+        if prune:
+            client.images.prune()
+            log("Pruned dangling images", "info")
+        return True
+    except docker.errors.ImageNotFound:
+        log(f"Image {tag} not found. Skipping deletion.", "warning")
+        return False
+    except Exception as e:
+        log(f"Failed to delete image {tag}: {str(e)}", "error")
+        return False
 
 
 # Parallel tasks
@@ -243,39 +195,23 @@ def run_tasks(config, action, tags=None):
     if tags:
         builds = [b for b in builds if b["tag"] in tags]
 
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        BarColumn(),
-        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
-        console=console,
-    ) as progress:
-        tasks = []
-        for build in builds:
-            task_id = progress.add_task(f"[cyan]{build['tag']}", total=100)
-            tasks.append((build, task_id))
-
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
         if action == "build":
-            futures = [
-                executor.submit(build_image, build, config, progress, task_id)
-                for build, task_id in tasks
-            ]
+            futures = [executor.submit(build_image, build, config) for build in builds]
         elif action == "push":
             futures = [
-                executor.submit(push_image, build["tag"], config) for build, _ in tasks
+                executor.submit(push_image, build["tag"], config) for build in builds
             ]
         elif action == "delete":
             futures = [
-                executor.submit(delete_image, build["tag"], config)
-                for build, _ in tasks
+                executor.submit(delete_image, build["tag"], config) for build in builds
             ]
 
         for future in concurrent.futures.as_completed(futures):
             if stop_event.is_set():
                 for f in futures:
                     f.cancel()
-                executor.shutdown(wait=False)  # 立即关闭执行器，不等待未完成的任务
+                executor.shutdown(wait=False)
                 break
             future.result()
 
@@ -296,7 +232,6 @@ def signal_handler(signum, frame):
         stop_event.set()
     else:
         log("Received second interrupt signal. Forcing immediate shutdown.", "error")
-        print_error_summary()
         os._exit(1)
 
 
@@ -406,7 +341,6 @@ def main():
     else:
         log("All tasks completed.", "success")
 
-    print_error_summary()
     cleanup_logging()
 
     if sigint_count > 0:
