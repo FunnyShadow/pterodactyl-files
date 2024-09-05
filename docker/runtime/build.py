@@ -59,7 +59,7 @@ def build_image(build_config, global_config, progress, task_id):
         log(f"Invalid region '{region}' for {tag}. Using 'global'.", "warning")
         region = 'global'
 
-    dockerfile = f"Dockerfile.{build_type}"
+    dockerfile = f"Dockerfile"
     build_args['REGION'] = region
     build_args['TYPE'] = build_type
 
