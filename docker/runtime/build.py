@@ -8,6 +8,7 @@ import threading
 import time
 import yaml
 import queue
+import logging
 from rich.console import Console
 from datetime import datetime
 from functools import wraps
@@ -20,6 +21,7 @@ log_lock = threading.Lock()
 log_queue = queue.Queue()
 thread_local = threading.local()
 sigint_count = 0
+log_level = logging.INFO
 
 
 # Config
@@ -32,7 +34,10 @@ def find_config_file():
 
 def load_config(config_file):
     with open(config_file, "r") as f:
-        return yaml.safe_load(f)
+        config = yaml.safe_load(f)
+    global log_level
+    log_level = getattr(logging, config.get("log_level", "INFO").upper(), logging.INFO)
+    return config
 
 
 # Logging
@@ -59,28 +64,30 @@ def get_task_name():
 
 def format_log(func):
     @wraps(func)
-    def wrapper(message, level="info"):
-        timestamp = datetime.now().strftime("%Y-%m-%d [#66ccff]/ [white]%H:%M:%S")
-        level_colors = {
-            "info": "bold blue",
-            "error": "bold red",
-            "success": "bold green",
-            "warning": "bold yellow",
-        }
-        level_text = level.upper().rjust(7)
-        task_name = get_task_name()
-        if len(task_name) > 25:
-            task_name = task_name[:22] + "..."
-        task_name = task_name.ljust(25)
+    def wrapper(message, level="debug"):
+        if getattr(logging, level.upper()) >= log_level:
+            timestamp = datetime.now().strftime("%Y-%m-%d [#66ccff]/ [white]%H:%M:%S")
+            level_colors = {
+                "debug": "dim white",
+                "info": "bold blue",
+                "error": "bold red",
+                "success": "bold green",
+                "warning": "bold yellow",
+            }
+            level_text = level.upper().rjust(7)
+            task_name = get_task_name()
+            if len(task_name) > 25:
+                task_name = task_name[:22] + "..."
+            task_name = task_name.ljust(25)
 
-        formatted_message = f"[#66ccff]{timestamp}[/] [green]|[/] [purple]{task_name}[/] [green]|[/] [{level_colors[level]}]{level_text}[/] [yellow]->[/] {message}"
-        log_queue.put(formatted_message)
+            formatted_message = f"[#66ccff]{timestamp}[/] [green]|[/] [purple]{task_name}[/] [green]|[/] [{level_colors[level]}]{level_text}[/] [yellow]->[/] {message}"
+            log_queue.put(formatted_message)
 
     return wrapper
 
 
 @format_log
-def log(message, level="info"):
+def log(message, level="debug"):
     pass
 
 
@@ -111,7 +118,7 @@ def build_image(build_config, global_config):
 
     for attempt in range(max_retries):
         try:
-            log(f"Building image: {tag} (Attempt {attempt + 1}/{max_retries})")
+            log(f"Building image: {tag} (Attempt {attempt + 1}/{max_retries})", "info")
             image, logs = client.images.build(
                 path=build_dir,
                 dockerfile=dockerfile,
@@ -122,7 +129,7 @@ def build_image(build_config, global_config):
             )
             for line in logs:
                 if "stream" in line:
-                    log(line["stream"].strip())
+                    log(line["stream"].strip(), "debug")
             log(f"Successfully built image: {tag}", "success")
             return True
         except Exception as e:
@@ -145,7 +152,7 @@ def push_image(tag, config):
 
     for attempt in range(max_retries):
         try:
-            log(f"Pushing image: {tag} (Attempt {attempt + 1}/{max_retries})")
+            log(f"Pushing image: {tag} (Attempt {attempt + 1}/{max_retries})", "info")
             auth_config = {}
             if username and password:
                 auth_config = {"username": username, "password": password}
@@ -175,12 +182,12 @@ def delete_image(tag, config):
         # Check if the image exists
         client.images.get(tag)
 
-        log(f"Deleting image: {tag}")
+        log(f"Deleting image: {tag}", "info")
         client.images.remove(tag, force=force)
         log(f"Successfully deleted image: {tag}", "success")
         if prune:
             client.images.prune()
-            log("Pruned dangling images", "info")
+            log("Pruned dangling images", "debug")
         return True
     except docker.errors.ImageNotFound:
         log(f"Image {tag} not found. Skipping deletion.", "warning")
@@ -226,7 +233,7 @@ def run_tasks(config, action, tags=None):
                 executor.shutdown(wait=True)
 
     if stop_event.is_set():
-        log("Graceful shutdown completed.", "info")
+        log("Graceful shutdown completed.", "debug")
 
 
 # Signal handling
@@ -248,6 +255,12 @@ def signal_handler(signum, frame):
 def main():
     parser = argparse.ArgumentParser(description="Docker image builder and manager")
     parser.add_argument("-c", "--config", help="Path to the configuration file")
+    parser.add_argument(
+        "--log-level",
+        choices=["DEBUG", "INFO", "WARNING", "ERROR"],
+        default="INFO",
+        help="Set the logging level",
+    )
     subparsers = parser.add_subparsers(dest="action", required=True)
 
     build_parser = subparsers.add_parser("build", help="Build Docker images")
@@ -295,6 +308,9 @@ def main():
     )
 
     args = parser.parse_args()
+
+    global log_level
+    log_level = getattr(logging, args.log_level.upper(), logging.INFO)
 
     if args.config:
         config_file = args.config
@@ -361,7 +377,7 @@ def main():
     elif all_tasks_completed:
         sys.exit(0)
     else:
-        sys.exit(2)  # 使用不同的退出码表示任务未完全完成
+        sys.exit(2)
 
 
 if __name__ == "__main__":
