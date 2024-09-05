@@ -7,6 +7,7 @@ import sys
 import threading
 import time
 import yaml
+import queue
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskID
 from rich.panel import Panel
@@ -19,11 +20,14 @@ console = Console()
 client = docker.from_env()
 stop_event = threading.Event()
 log_lock = threading.Lock()
+log_queue = queue.Queue()
+thread_local = threading.local()
 error_summary = []
 error_summary_lock = threading.Lock()
 sigint_count = 0
 
 
+# Config
 def find_config_file():
     for filename in ["config.yml", "config.yaml"]:
         if os.path.exists(filename):
@@ -34,6 +38,28 @@ def find_config_file():
 def load_config(config_file):
     with open(config_file, "r") as f:
         return yaml.safe_load(f)
+
+
+# Logging
+def log_worker():
+    while True:
+        log_entry = log_queue.get()
+        if log_entry is None:
+            break
+        console.print(log_entry, soft_wrap=True)
+        log_queue.task_done()
+
+
+log_thread = threading.Thread(target=log_worker, daemon=True)
+log_thread.start()
+
+
+def set_task_name(name):
+    thread_local.task_name = name
+
+
+def get_task_name():
+    return getattr(thread_local, "task_name", "Unknown")
 
 
 def format_log(func):
@@ -47,11 +73,17 @@ def format_log(func):
             "warning": "bold yellow",
         }
         level_text = level.upper().rjust(7)
+        task_name = get_task_name().ljust(25)
 
-        formatted_message = f"[#66ccff]{timestamp}[/] [green]|[/] [{level_colors[level]}]{level_text}[/] [yellow]->[/] {highlight_keywords(message)}"
-        return func(formatted_message, level)
+        formatted_message = f"[#66ccff]{timestamp}[/] [green]|[/] [cyan]{task_name}[/] [green]|[/] [{level_colors[level]}]{level_text}[/] [yellow]->[/] {highlight_keywords(message)}"
+        log_queue.put(formatted_message)
 
     return wrapper
+
+
+@format_log
+def log(message, level="info"):
+    pass
 
 
 def highlight_keywords(message):
@@ -71,26 +103,29 @@ def highlight_keywords(message):
     return message
 
 
-@format_log
-def log(message, level="info"):
-    # 原有的 log 函数代码保持不变
-    with log_lock:
-        if level == "info":
-            console.print(f"[bold blue]INFO:[/bold blue] {message}")
-        elif level == "error":
-            console.print(f"[bold red]ERROR:[/bold red] {message}")
-        elif level == "success":
-            console.print(f"[bold green]SUCCESS:[/bold green] {message}")
-        elif level == "warning":
-            console.print(f"[bold yellow]WARNING:[/bold yellow] {message}")
+def cleanup_logging():
+    log_queue.put(None)
+    log_thread.join()
 
 
+# Error Summary
 def add_to_error_summary(message):
     with error_summary_lock:
         error_summary.append(message)
 
 
+def print_error_summary():
+    if error_summary:
+        console.print("\n[bold red]Error Summary:[/bold red]")
+        for error in error_summary:
+            console.print(f"- {error}")
+    else:
+        console.print("\n[bold green]No errors occurred during execution.[/bold green]")
+
+
+# Image Building
 def build_image(build_config, global_config, progress, task_id):
+    set_task_name(build_config["tag"])
     tag = build_config["tag"]
     build_type = build_config.get("build_type", "vanilla")
     region = build_config.get("region", global_config.get("region", "global"))
@@ -137,7 +172,9 @@ def build_image(build_config, global_config, progress, task_id):
                 return False
 
 
+# Image pushing
 def push_image(tag, config):
+    set_task_name(tag)
     max_retries = config.get("max_retries", 3)
     retry_delay = config.get("retry_delay", 5)
     username = config["upload"].get("username")
@@ -169,7 +206,9 @@ def push_image(tag, config):
                 return False
 
 
+# Image deleting
 def delete_image(tag, config):
+    set_task_name(tag)
     max_retries = config.get("max_retries", 3)
     retry_delay = config.get("retry_delay", 5)
     force = config.get("force_delete", False)
@@ -196,6 +235,7 @@ def delete_image(tag, config):
                 return False
 
 
+# Parallel tasks
 def run_tasks(config, action, tags=None):
     max_workers = config.get("max_parallel_tasks", 5)
     builds = config["build"]
@@ -243,6 +283,7 @@ def run_tasks(config, action, tags=None):
         log("Graceful shutdown completed.", "info")
 
 
+# Signal handling
 def signal_handler(signum, frame):
     global sigint_count
     sigint_count += 1
@@ -257,15 +298,6 @@ def signal_handler(signum, frame):
         log("Received second interrupt signal. Forcing immediate shutdown.", "error")
         print_error_summary()
         os._exit(1)
-
-
-def print_error_summary():
-    if error_summary:
-        console.print("\n[bold red]Error Summary:[/bold red]")
-        for error in error_summary:
-            console.print(f"- {error}")
-    else:
-        console.print("\n[bold green]No errors occurred during execution.[/bold green]")
 
 
 def main():
@@ -328,12 +360,14 @@ def main():
                 "No configuration file found. Please provide a config file using -c or --config option.",
                 "error",
             )
+            cleanup_logging()
             sys.exit(1)
 
     try:
         config = load_config(config_file)
     except Exception as e:
         log(f"Failed to load configuration: {str(e)}", "error")
+        cleanup_logging()
         sys.exit(1)
 
     # Update config with command-line arguments
@@ -373,6 +407,7 @@ def main():
         log("All tasks completed.", "success")
 
     print_error_summary()
+    cleanup_logging()
 
     if sigint_count > 0:
         sys.exit(1)
@@ -381,4 +416,6 @@ def main():
 
 
 if __name__ == "__main__":
+    log_thread = threading.Thread(target=log_worker, daemon=True)
+    log_thread.start()
     main()
