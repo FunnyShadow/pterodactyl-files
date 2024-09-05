@@ -254,6 +254,8 @@ def signal_handler(signum, frame):
     global sigint_count
     sigint_count += 1
 
+    set_task_name("Signal Handler")
+
     if sigint_count == 1:
         log(
             "Received interrupt signal. Attempting graceful shutdown. Press Ctrl+C again to force quit.",
