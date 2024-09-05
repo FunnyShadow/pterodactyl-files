@@ -79,7 +79,6 @@ def format_log(func):
     return wrapper
 
 
-
 @format_log
 def log(message, level="info"):
     pass
@@ -211,13 +210,20 @@ def run_tasks(config, action, tags=None):
                 executor.submit(delete_image, build["tag"], config) for build in builds
             ]
 
-        for future in concurrent.futures.as_completed(futures):
+        try:
+            for future in concurrent.futures.as_completed(futures):
+                if stop_event.is_set():
+                    break
+                future.result()
+        except KeyboardInterrupt:
+            stop_event.set()
+        finally:
             if stop_event.is_set():
                 for f in futures:
                     f.cancel()
                 executor.shutdown(wait=False)
-                break
-            future.result()
+            else:
+                executor.shutdown(wait=True)
 
     if stop_event.is_set():
         log("Graceful shutdown completed.", "info")
@@ -331,8 +337,11 @@ def main():
 
     signal.signal(signal.SIGINT, signal_handler)
 
+    all_tasks_completed = False
+
     try:
         run_tasks(config, args.action, args.tags)
+        all_tasks_completed = True
     except KeyboardInterrupt:
         pass
 
@@ -342,15 +351,17 @@ def main():
             "warning",
         )
         time.sleep(5)
-    else:
+    elif all_tasks_completed:
         log("All tasks completed.", "success")
 
     cleanup_logging()
 
     if sigint_count > 0:
         sys.exit(1)
-    else:
+    elif all_tasks_completed:
         sys.exit(0)
+    else:
+        sys.exit(2)  # 使用不同的退出码表示任务未完全完成
 
 
 if __name__ == "__main__":
