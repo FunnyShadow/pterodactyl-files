@@ -11,6 +11,8 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskID
 from rich.panel import Panel
 from rich.table import Table
+from datetime import datetime
+from functools import wraps
 
 # Global variables
 console = Console()
@@ -29,8 +31,43 @@ def find_config_file():
 def load_config(config_file):
     with open(config_file, 'r') as f:
         return yaml.safe_load(f)
+    
+def format_log(func):
+    @wraps(func)
+    def wrapper(message, level="info"):
+        timestamp = datetime.now().strftime("%Y-%m-%d [#66ccff]/ [/]%H:%M:%S")
+        level_colors = {
+            "info": "bold blue",
+            "error": "bold red",
+            "success": "bold green",
+            "warning": "bold yellow"
+        }
+        level_text = level.upper().rjust(7)
+        
+        formatted_message = f"[#66ccff]{timestamp}[/] [green]|[/] [{level_colors[level]}]{level_text}[/] [yellow]->[/] {highlight_keywords(message)}"
+        return func(formatted_message, level)
+    
+    return wrapper
 
+def highlight_keywords(message):
+    keywords = {
+        "build": "cyan",
+        "push": "magenta",
+        "delete": "red",
+        "image": "green",
+        "successfully": "bold green",
+        "failed": "bold red",
+        "retrying": "yellow",
+    }
+    
+    for keyword, color in keywords.items():
+        message = message.replace(keyword, f"[{color}]{keyword}[/]")
+    
+    return message
+    
+@format_log
 def log(message, level="info"):
+    # 原有的 log 函数代码保持不变
     with log_lock:
         if level == "info":
             console.print(f"[bold blue]INFO:[/bold blue] {message}")
