@@ -144,7 +144,7 @@ def delete_image(tag, config):
 
 def run_tasks(config, action, tags=None):
     max_workers = config.get('max_parallel_tasks', 5)
-    builds = config['builds']
+    builds = config['build']
 
     if tags:
         builds = [b for b in builds if b['tag'] in tags]
