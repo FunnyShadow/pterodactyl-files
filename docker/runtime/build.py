@@ -1,272 +1,248 @@
-#!/usr/bin/env python3
 import argparse
-import os
-import sys
-import time
-from typing import Dict, Callable
-from datetime import datetime
-import yaml
+import concurrent.futures
 import docker
-from colorama import init, Fore, Style, Back
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import os
+import signal
+import sys
 import threading
-import logging
-import base64
-import boto3
+import time
+import yaml
+from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskID
+from rich.panel import Panel
+from rich.table import Table
 
-init(autoreset=True)
-stop_flag = threading.Event()
+# Global variables
+console = Console()
+client = docker.from_env()
+stop_event = threading.Event()
+log_lock = threading.Lock()
+error_summary = []
+error_summary_lock = threading.Lock()
 
+def load_config(config_file):
+    with open(config_file, 'r') as f:
+        return yaml.safe_load(f)
 
-class ColoredFormatter(logging.Formatter):
-    level_colors = {
-        logging.DEBUG: Fore.CYAN,
-        logging.INFO: Fore.WHITE,
-        logging.WARNING: f"{Fore.BLACK}{Back.YELLOW}",
-        logging.ERROR: f"{Fore.WHITE}{Back.RED}",
-        logging.CRITICAL: f"{Fore.WHITE}{Back.RED}",
-    }
+def log(message, level="info"):
+    with log_lock:
+        if level == "info":
+            console.print(f"[bold blue]INFO:[/bold blue] {message}")
+        elif level == "error":
+            console.print(f"[bold red]ERROR:[/bold red] {message}")
+        elif level == "success":
+            console.print(f"[bold green]SUCCESS:[/bold green] {message}")
+        elif level == "warning":
+            console.print(f"[bold yellow]WARNING:[/bold yellow] {message}")
 
-    def format(self, record):
-        levelname = record.levelname
-        if record.levelno == logging.INFO:
-            levelname = f"{Fore.WHITE}{Back.BLUE}{levelname:^7}{Style.RESET_ALL}"
-        elif record.levelno == logging.WARNING:
-            levelname = f"{Fore.BLACK}{Back.YELLOW}{levelname:^7}{Style.RESET_ALL}"
-        elif record.levelno in (logging.ERROR, logging.CRITICAL):
-            levelname = f"{Fore.WHITE}{Back.RED}{levelname:^7}{Style.RESET_ALL}"
+def add_to_error_summary(message):
+    with error_summary_lock:
+        error_summary.append(message)
 
-        log_color = self.level_colors.get(record.levelno, "")
-        log_fmt = f"{Fore.CYAN}[%(asctime)s]{Style.RESET_ALL} {levelname} {log_color}%(message)s{Style.RESET_ALL}"
-        formatter = logging.Formatter(log_fmt, datefmt="%Y-%m-%d %H:%M:%S")
-        return formatter.format(record)
+def build_image(build_config, global_config, progress, task_id):
+    tag = build_config['tag']
+    build_type = build_config.get('build_type', 'vanilla')
+    region = build_config.get('region', global_config.get('region', 'global'))
+    build_dir = build_config.get('build_dir', global_config.get('build_dir', 'build'))
+    build_args = build_config.get('build_args', {})
+    max_retries = global_config.get('max_retries', 3)
+    retry_delay = global_config.get('retry_delay', 5)
+    no_cache = global_config.get('no_cache', False)
 
-logger = logging.getLogger("DockerScript")
-logger.setLevel(logging.INFO)
-console_handler = logging.StreamHandler()
-console_handler.setFormatter(ColoredFormatter())
-logger.addHandler(console_handler)
+    if region not in ['global', 'china']:
+        log(f"Invalid region '{region}' for {tag}. Using 'global'.", "warning")
+        region = 'global'
 
-def load_config(config_file: str) -> Dict:
-    try:
-        with open(config_file, "r") as file:
-            return yaml.safe_load(file)
-    except FileNotFoundError:
-        logger.error(f"Config file not found: {config_file}")
-        sys.exit(1)
-    except yaml.YAMLError as e:
-        logger.error(f"Error parsing config file: {e}")
-        sys.exit(1)
+    dockerfile = f"Dockerfile.{build_type}"
+    build_args['REGION'] = region
+    build_args['TYPE'] = build_type
 
-
-def retry_operation(operation: Callable, *args, retry: int = 3, **kwargs):
-    for attempt in range(retry):
+    for attempt in range(max_retries):
         try:
-            return operation(*args, **kwargs)
-        except Exception as e:
-            if attempt < retry - 1:
-                logger.warning(f"Operation failed, retrying... ({attempt + 1}/{retry})")
-                time.sleep(2**attempt)  # Exponential backoff
-            else:
-                logger.error(f"Operation failed after {retry} attempts: {str(e)}")
-                raise
-
-def build_image(
-    client: docker.DockerClient, build: Dict, config: Dict, cli_build_dir: str = None
-):
-    tag = build["tag"]
-    logger.info(f"Building image: {tag}")
-    build_dir = cli_build_dir or build.get("build_dir") or config.get("build_dir", ".")
-
-    build_args = build.get("build_args", {})
-    try:
-        client.images.build(path=build_dir, tag=tag, buildargs=build_args)
-        logger.info(f"Successfully built image: {tag}")
-    except docker.errors.BuildError as e:
-        logger.error(f"Build failed for {tag}: {str(e)}")
-        raise
-
-def push_image(client: docker.DockerClient, tag: str, config: Dict):
-    logger.info(f"Pushing image: {tag}")
-    try:
-        registry_type = config["upload"]["registry_type"]
-        if registry_type == "dockerhub":
-            client.images.push(tag)
-        elif registry_type == "ecr":
-            ecr_client = boto3.client("ecr", region_name=config["region"])
-            token = ecr_client.get_authorization_token()
-            username, password = (
-                base64.b64decode(token["authorizationData"][0]["authorizationToken"])
-                .decode()
-                .split(":")
+            log(f"Building image: {tag} (Attempt {attempt + 1}/{max_retries})")
+            image, logs = client.images.build(
+                path=build_dir,
+                dockerfile=dockerfile,
+                tag=tag,
+                buildargs=build_args,
+                quiet=False,
+                nocache=no_cache
             )
-            registry = token["authorizationData"][0]["proxyEndpoint"]
-            client.login(username=username, password=password, registry=registry)
-            client.images.push(tag)
-        else:
-            raise ValueError(f"Unsupported registry type: {registry_type}")
-        logger.info(f"Successfully pushed image: {tag}")
-    except Exception as e:
-        logger.error(f"Push failed for {tag}: {str(e)}")
-        raise
+            for line in logs:
+                if 'stream' in line:
+                    log(line['stream'].strip())
+                progress.update(task_id, advance=1)
+            log(f"Successfully built image: {tag}", "success")
+            return True
+        except Exception as e:
+            log(f"Failed to build image {tag}: {str(e)}", "error")
+            if attempt < max_retries - 1:
+                log(f"Retrying in {retry_delay} seconds...", "warning")
+                time.sleep(retry_delay)
+            else:
+                add_to_error_summary(f"Failed to build image {tag} after {max_retries} attempts: {str(e)}")
+                return False
 
-def delete_image(client: docker.DockerClient, tag: str):
-    logger.info(f"Deleting image: {tag}")
-    try:
-        client.images.remove(tag)
-        logger.info(f"Successfully deleted image: {tag}")
-    except docker.errors.ImageNotFound:
-        logger.warning(f"Image not found: {tag}")
-    except Exception as e:
-        logger.error(f"Delete failed for {tag}: {str(e)}")
-        raise
+def push_image(tag, config):
+    max_retries = config.get('max_retries', 3)
+    retry_delay = config.get('retry_delay', 5)
+    username = config['upload'].get('username')
+    password = config['upload'].get('password')
+    registry = config['upload'].get('registry')
 
-def process_image(
-    client: docker.DockerClient,
-    build: Dict,
-    config: Dict,
-    operation: Callable,
-    args: argparse.Namespace,
-):
-    if stop_flag.is_set():
-        return
-    return retry_operation(
-        operation, client, build, config, args.build_dir, retry=args.retry
-    )
-
-def process_images_parallel(
-    client: docker.DockerClient,
-    config: Dict,
-    operation: Callable,
-    args: argparse.Namespace,
-):
-    max_workers = args.parallel or config.get("max_parallel_tasks", 1)
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = [
-            executor.submit(process_image, client, build, config, operation, args)
-            for build in config["builds"]
-        ]
+    for attempt in range(max_retries):
         try:
-            for future in as_completed(futures):
-                try:
-                    future.result()
-                except Exception as e:
-                    logger.error(f"An error occurred: {str(e)}")
-                if stop_flag.is_set():
-                    break
-        except KeyboardInterrupt:
-            logger.warning("Received interrupt, stopping operations...")
-            stop_flag.set()
-            executor.shutdown(wait=False)
-            for future in futures:
-                future.cancel()
-            raise
+            log(f"Pushing image: {tag} (Attempt {attempt + 1}/{max_retries})")
+            auth_config = {}
+            if username and password:
+                auth_config = {'username': username, 'password': password}
+            if registry:
+                repository = f"{registry}/{tag}"
+            else:
+                repository = tag
+            client.images.push(repository, auth_config=auth_config)
+            log(f"Successfully pushed image: {tag}", "success")
+            return True
+        except Exception as e:
+            log(f"Failed to push image {tag}: {str(e)}", "error")
+            if attempt < max_retries - 1:
+                log(f"Retrying in {retry_delay} seconds...", "warning")
+                time.sleep(retry_delay)
+            else:
+                add_to_error_summary(f"Failed to push image {tag} after {max_retries} attempts: {str(e)}")
+                return False
 
-    if (
-        operation == build_image
-        and config["upload"].get("auto_push", False)
-        and not stop_flag.is_set()
-    ):
-        with ThreadPoolExecutor(max_workers=max_workers) as executor:
-            futures = [
-                executor.submit(push_image, client, build["tag"], config)
-                for build in config["builds"]
-            ]
-            try:
-                for future in as_completed(futures):
-                    try:
-                        future.result()
-                    except Exception as e:
-                        logger.error(f"An error occurred while pushing: {str(e)}")
-                    if stop_flag.is_set():
-                        break
-            except KeyboardInterrupt:
-                logger.warning("Received interrupt, stopping push operations...")
-                stop_flag.set()
-                executor.shutdown(wait=False)
-                for future in futures:
-                    future.cancel()
-                raise
+def delete_image(tag, config):
+    max_retries = config.get('max_retries', 3)
+    retry_delay = config.get('retry_delay', 5)
+    force = config.get('force_delete', False)
+    prune = config.get('prune_after_delete', False)
+
+    for attempt in range(max_retries):
+        try:
+            log(f"Deleting image: {tag} (Attempt {attempt + 1}/{max_retries})")
+            client.images.remove(tag, force=force)
+            log(f"Successfully deleted image: {tag}", "success")
+            if prune:
+                client.images.prune()
+                log("Pruned dangling images", "info")
+            return True
+        except Exception as e:
+            log(f"Failed to delete image {tag}: {str(e)}", "error")
+            if attempt < max_retries - 1:
+                log(f"Retrying in {retry_delay} seconds...", "warning")
+                time.sleep(retry_delay)
+            else:
+                add_to_error_summary(f"Failed to delete image {tag} after {max_retries} attempts: {str(e)}")
+                return False
+
+def run_tasks(config, action, tags=None):
+    max_workers = config.get('max_parallel_tasks', 5)
+    builds = config['builds']
+
+    if tags:
+        builds = [b for b in builds if b['tag'] in tags]
+
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        BarColumn(),
+        TextColumn("[progress.percentage]{task.percentage:>3.0f}%"),
+        console=console
+    ) as progress:
+        tasks = []
+        for build in builds:
+            task_id = progress.add_task(f"[cyan]{build['tag']}", total=100)
+            tasks.append((build, task_id))
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            if action == 'build':
+                futures = [executor.submit(build_image, build, config, progress, task_id) for build, task_id in tasks]
+            elif action == 'push':
+                futures = [executor.submit(push_image, build['tag'], config) for build, _ in tasks]
+            elif action == 'delete':
+                futures = [executor.submit(delete_image, build['tag'], config) for build, _ in tasks]
+
+            for future in concurrent.futures.as_completed(futures):
+                if stop_event.is_set():
+                    for f in futures:
+                        f.cancel()
+                    break
+                future.result()
+
+def signal_handler(signum, frame):
+    log("Received interrupt signal. Stopping tasks...", "info")
+    stop_event.set()
+
+def print_error_summary():
+    if error_summary:
+        console.print("\n[bold red]Error Summary:[/bold red]")
+        for error in error_summary:
+            console.print(f"- {error}")
+    else:
+        console.print("\n[bold green]No errors occurred during execution.[/bold green]")
 
 def main():
-    parser = argparse.ArgumentParser(
-        description="Docker image management script for Minecraft servers",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="Examples:\n  %(prog)s build\n  %(prog)s push\n  %(prog)s delete",
-    )
-    parser.add_argument(
-        "-r",
-        "--retry",
-        type=int,
-        default=3,
-        help="Number of retries for failed operations (default: 3)",
-    )
-    parser.add_argument(
-        "-c",
-        "--config",
-        default="config.yaml",
-        help="Path to the configuration file (default: config.yaml)",
-    )
-    parser.add_argument(
-        "-d", "--build-dir", help="Override the build directory for all images"
-    )
-    parser.add_argument(
-        "--region", help="Override the region specified in the config file"
-    )
-    parser.add_argument(
-        "--username", help="Override the username specified in the config file"
-    )
-    parser.add_argument(
-        "--password", help="Override the password specified in the config file"
-    )
-    parser.add_argument(
-        "-p",
-        "--parallel",
-        type=int,
-        help="Maximum number of parallel tasks (overrides config file)",
-    )
+    parser = argparse.ArgumentParser(description="Docker image builder and manager")
+    parser.add_argument('-c', '--config', default='config.yaml', help='Path to the configuration file')
+    subparsers = parser.add_subparsers(dest='action', required=True)
 
-    subparsers = parser.add_subparsers(
-        title="Commands", dest="command", required=True, metavar="COMMAND"
-    )
+    build_parser = subparsers.add_parser('build', help='Build Docker images')
+    build_parser.add_argument('-t', '--tags', nargs='+', help='Specific image tags to build')
+    build_parser.add_argument('-r', '--region', choices=['global', 'china'], help='Specify the region for building')
+    build_parser.add_argument('-d', '--build-dir', help='Specify the build directory')
+    build_parser.add_argument('-a', '--build-arg', action='append', nargs=2, metavar=('KEY', 'VALUE'), help='Set a build-time variable')
+    build_parser.add_argument('--no-cache', action='store_true', help='Do not use cache when building the image')
 
-    subparsers.add_parser("build", help="Build all images")
-    subparsers.add_parser("push", help="Push all images")
-    subparsers.add_parser("delete", help="Delete all images")
+    push_parser = subparsers.add_parser('push', help='Push Docker images')
+    push_parser.add_argument('-t', '--tags', nargs='+', help='Specific image tags to push')
+    push_parser.add_argument('-u', '--username', help='Docker registry username')
+    push_parser.add_argument('-p', '--password', help='Docker registry password')
+    push_parser.add_argument('--registry', help='Specify a custom registry URL')
+
+    delete_parser = subparsers.add_parser('delete', help='Delete Docker images')
+    delete_parser.add_argument('-t', '--tags', nargs='+', help='Specific image tags to delete')
+    delete_parser.add_argument('-f', '--force', action='store_true', help='Force removal of the image')
+    delete_parser.add_argument('--prune', action='store_true', help='Remove all dangling images after deletion')
 
     args = parser.parse_args()
 
-    config = load_config(args.config)
-
-    # Override config values with command line arguments if provided
-    if args.region:
-        config["region"] = args.region
-    if args.username:
-        config["upload"]["username"] = args.username
-    if args.password:
-        config["upload"]["password"] = args.password
-
-    client = docker.from_env()
-
     try:
-        operations = {
-            "build": build_image,
-            "push": lambda client, build, config, cli_build_dir: push_image(
-                client, build["tag"], config
-            ),
-            "delete": lambda client, build, _, cli_build_dir: delete_image(
-                client, build["tag"]
-            ),
-        }
-        process_images_parallel(client, config, operations[args.command], args)
-    except KeyboardInterrupt:
-        logger.error("Operation canceled by user")
-    finally:
-        client.close()
-
-    if stop_flag.is_set():
-        logger.warning("Some operations may have been interrupted")
+        config = load_config(args.config)
+    except Exception as e:
+        log(f"Failed to load configuration: {str(e)}", "error")
         sys.exit(1)
+
+    # Update config with command-line arguments
+    if args.action == 'build':
+        if args.region:
+            config['region'] = args.region
+        if args.build_dir:
+            config['build_dir'] = args.build_dir
+        if args.build_arg:
+            config['build_args'] = dict(args.build_arg)
+        config['no_cache'] = args.no_cache
+    elif args.action == 'push':
+        if args.username:
+            config['upload']['username'] = args.username
+        if args.password:
+            config['upload']['password'] = args.password
+        if args.registry:
+            config['upload']['registry'] = args.registry
+    elif args.action == 'delete':
+        config['force_delete'] = args.force
+        config['prune_after_delete'] = args.prune
+
+    signal.signal(signal.SIGINT, signal_handler)
+
+    run_tasks(config, args.action, args.tags)
+
+    if not stop_event.is_set():
+        log("All tasks completed.", "success")
+    else:
+        log("Tasks were interrupted.", "info")
+
+    print_error_summary()
 
 if __name__ == "__main__":
     main()

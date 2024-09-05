@@ -1,4 +1,3 @@
 PyYAML
 docker
-colorama
-boto3
+rich

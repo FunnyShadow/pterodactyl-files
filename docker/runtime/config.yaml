@@ -1,6 +1,9 @@
-region: "global"
-build_dir: "build"
 max_parallel_tasks: 5
+max_retries: 3
+retry_delay: 5
+
+region: "china"
+build_dir: "build"
 
 upload:
   auto_push: true
@@ -8,36 +11,38 @@ upload:
   username: "your-username"
   password: "your-password"
 
-builds:
+build:
+  # Vanilla
   - tag: "bluefunny/minecraft:vanilla-j8"
+    build_type: "vanilla"
     build_args:
       JAVA: "8"
-      TYPE: "vanilla"
   - tag: "bluefunny/minecraft:vanilla-j11"
+    build_type: "vanilla"
     build_args:
       JAVA: "11"
-      TYPE: "vanilla"
   - tag: "bluefunny/minecraft:vanilla-j17"
+    build_type: "vanilla"
     build_args:
       JAVA: "17"
-      TYPE: "vanilla"
   - tag: "bluefunny/minecraft:vanilla-j21"
+    build_type: "vanilla"
     build_args:
       JAVA: "21"
-      TYPE: "vanilla"
+  # MCDReforged
   - tag: "bluefunny/minecraft:mcdr-j8"
+    build_type: "mcdr"
     build_args:
       JAVA: "8"
-      TYPE: "mcdr"
   - tag: "bluefunny/minecraft:mcdr-j11"
+    build_type: "mcdr"
     build_args:
       JAVA: "11"
-      TYPE: "mcdr"
   - tag: "bluefunny/minecraft:mcdr-j17"
+    build_type: "mcdr"
     build_args:
       JAVA: "17"
-      TYPE: "mcdr"
   - tag: "bluefunny/minecraft:mcdr-j21"
+    build_type: "mcdr"
     build_args:
       JAVA: "21"
-      TYPE: "mcdr"
