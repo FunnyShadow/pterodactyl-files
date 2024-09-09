@@ -2,7 +2,7 @@
 
 If you discover a security vulnerability in MCSManager and believe it may harm other users, and you are willing to help us fix it but do not wish to disclose the details publicly.
 
-**Please send detailed information to our email: noreply@foxrealms.online**
+**Please send detailed information to our email: no-reply@trcloud.tech**
 
 The email subject format should be: `[Security Vulnerability] <Title>`
 
