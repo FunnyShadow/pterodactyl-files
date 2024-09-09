@@ -112,7 +112,7 @@ variables:
   default_value: ''
   user_viewable: true
   user_editable: true
-  rules: required|integer
+  rules: required|regex:/^\d+\.\d+\.\d+-\d+\.\d+\.\d+$/
   field_type: text
 - name: 最大内存参数
   description: |-
