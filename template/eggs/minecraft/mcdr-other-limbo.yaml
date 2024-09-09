@@ -3,7 +3,7 @@ meta:
   version: PTDL_v2
   update_url:
 exported_at: '2024-06-02T11:09:31+08:00'
-name: Server (MCDR) | Fabric
+name: Other (MCDR) | Limbo
 author: noreply@foxrealms.online
 description:
 features:
@@ -17,18 +17,11 @@ startup: python3.12 -m mcdreforged
 config:
   files: |-
     {
-        "server/server.properties": {
-            "parser": "properties",
+        "server/settings.yml": {
+            "parser": "yaml",
             "find": {
-                "server-ip": "0.0.0.0",
-                "server-port": "{{server.build.default.port}}",
-                "query.port": "{{server.build.default.port}}"
-            }
-        },
-        "server/eula.txt": {
-            "parser": "properties",
-            "find": {
-                "eula": "true"
+                "bind.ip": "0.0.0.0",
+                "bind.port": "{{server.build.default.port}}"
             }
         },
         "config.yml": {
@@ -41,7 +34,7 @@ config:
     }
   startup: |-
     {
-        "done": ")! For help, type "
+        "done": "Server started on "
     }
   logs: '{}'
   stop: stop
@@ -56,7 +49,7 @@ variables:
   description: |-
     MCDR 配置文件中的 `handler` 选项的值
   env_variable: MCDR_HANDLER
-  default_value: vanilla_handler
+  default_value: bukkit_handler
   user_viewable: true
   user_editable: false
   rules: required
