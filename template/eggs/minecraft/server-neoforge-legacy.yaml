@@ -3,7 +3,7 @@ meta:
   version: PTDL_v2
   update_url:
 exported_at: '2024-06-02T11:09:31+08:00'
-name: Other | Limbo
+name: Server | Legacy NeoForge
 author: no-reply@trcloud.tech
 description:
 features:
@@ -17,17 +17,24 @@ startup: 'java -Xms{{MIN_MEM}}M -Xmx{{MAX_MEM}}M {{JAVA_OPTIONS}} -jar {{SERVER_
 config:
   files: |-
     {
-        "server/settings.yml": {
-            "parser": "yaml",
+        "server.properties": {
+            "parser": "properties",
             "find": {
-                "bind.ip": "0.0.0.0",
-                "bind.port": "{{server.build.default.port}}"
+                "server-ip": "0.0.0.0",
+                "server-port": "{{server.build.default.port}}",
+                "query.port": "{{server.build.default.port}}"
+            }
+        },
+        "eula.txt": {
+            "parser": "properties",
+            "find": {
+                "eula": "true"
             }
         }
     }
   startup: |-
     {
-        "done": "Server started on "
+        "done": ")! For help, type "
     }
   logs: '{}'
   stop: stop

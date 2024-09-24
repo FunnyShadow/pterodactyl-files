@@ -83,7 +83,7 @@ variables:
   field_type: text
 - name: 服务端参数
   description: |-
-    添加在服务端核心文件后的参数
+    传递给服务端的服务端参数
   env_variable: SERVER_OPTIONS
   default_value: ''
   user_viewable: false

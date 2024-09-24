@@ -8,3 +8,9 @@ template/eggs/minecraft/other-limbo.json
 template/eggs/minecraft/mcdr-other-limbo.json
 template/eggs/minecraft/mcdr-server-forge.json
 template/eggs/minecraft/server-forge.json
+template/eggs/minecraft/server-forge-legacy.json
+template/eggs/minecraft/mcdr-server-forge-legacy.json
+template/eggs/minecraft/mcdr-server-neoforge.json
+template/eggs/minecraft/mcdr-server-neoforge-legacy.json
+template/eggs/minecraft/server-neoforge-legacy.json
+template/eggs/minecraft/server-neoforge.json

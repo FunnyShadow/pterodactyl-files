@@ -3,7 +3,7 @@ meta:
   version: PTDL_v2
   update_url:
 exported_at: '2024-06-02T11:09:31+08:00'
-name: Other | Limbo
+name: Server | NeoForge
 author: no-reply@trcloud.tech
 description:
 features:
@@ -13,21 +13,28 @@ docker_images:
   'Java 11': 'bluefunny/minecraft:vanilla-j11'
   'Java 8': 'bluefunny/minecraft:vanilla-j8'
 file_denylist: []
-startup: 'java -Xms{{MIN_MEM}}M -Xmx{{MAX_MEM}}M {{JAVA_OPTIONS}} -jar {{SERVER_JARFILE}} {{SERVER_OPTIONS}}'
+startup: 'java -Xms{{MIN_MEM}}M -Xmx{{MAX_MEM}}M {{JAVA_OPTIONS}} @libraries/net/neoforged/forge/{{FORGE_VERSION}}/unix_args.txt {{SERVER_OPTIONS}}'
 config:
   files: |-
     {
-        "server/settings.yml": {
-            "parser": "yaml",
+        "server.properties": {
+            "parser": "properties",
             "find": {
-                "bind.ip": "0.0.0.0",
-                "bind.port": "{{server.build.default.port}}"
+                "server-ip": "0.0.0.0",
+                "server-port": "{{server.build.default.port}}",
+                "query.port": "{{server.build.default.port}}"
+            }
+        },
+        "eula.txt": {
+            "parser": "properties",
+            "find": {
+                "eula": "true"
             }
         }
     }
   startup: |-
     {
-        "done": "Server started on "
+        "done": ")! For help, type "
     }
   logs: '{}'
   stop: stop
@@ -49,7 +56,7 @@ variables:
   field_type: text
 - name: 虚拟机参数
   description: |-
-    添加在 `-jar` 参数前的参数
+    添加在 Forge 标准参数前的参数
   env_variable: JAVA_OPTIONS
   default_value: ''
   user_viewable: false
@@ -66,13 +73,13 @@ variables:
   rules: nullable|string
   field_type: text
 # 用户参数
-- name: 服务端核心文件名
-  description: 用于启动服务器的服务端核心文件名称
-  env_variable: SERVER_JARFILE
-  default_value: 'server.jar'
+- name: Forge 版本
+  description: 用于启动服务器的 Forge 版本
+  env_variable: FORGE_VERSION
+  default_value: ''
   user_viewable: true
   user_editable: true
-  rules: required|regex:/^([\w\d._-]+)(\.jar)$/
+  rules: required|regex:/^\d+\.\d+\.\d+-\d+\.\d+\.\d+$/
   field_type: text
 - name: 最大内存参数
   description: |-
