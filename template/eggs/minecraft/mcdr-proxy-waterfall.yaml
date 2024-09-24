@@ -61,7 +61,7 @@ variables:
   description: |-
     MCDR 配置文件中的 `start_command` 选项的值
   env_variable: MCDR_START_COMMAND
-  default_value: '${OPTIONS} java -XX:MaxRAM=${SERVER_MEMORY}M -Xms${MIN_MEM}M -Xmx${MAX_MEM}M ${JAVA_OPTIONS} -jar ${SERVER_JARFILE} ${SERVER_OPTIONS}'
+  default_value: '${OPTIONS} java -Xms${MIN_MEM}M -Xmx${MAX_MEM}M ${JAVA_OPTIONS} -jar ${SERVER_JARFILE} ${SERVER_OPTIONS}'
   user_viewable: true
   user_editable: false
   rules: required
