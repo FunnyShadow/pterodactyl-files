@@ -17,10 +17,17 @@ startup: python3.12 -m mcdreforged
 config:
   files: |-
     {
-        "velocity.toml": {
+        "server/velocity.toml": {
             "parser": "file",
             "find": {
                 "bind = ": "bind = \"0.0.0.0:{{server.build.default.port}}\""
+            }
+        },
+        "config.yml": {
+            "parser": "yaml",
+            "find": {
+                "handler": "{{env.MCDR_HANDLER}}",
+                "start_command": "{{env.MCDR_START_COMMAND}}"
             }
         }
     }
