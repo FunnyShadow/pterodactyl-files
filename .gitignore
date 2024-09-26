@@ -14,3 +14,5 @@ template/eggs/minecraft/mcdr-server-neoforge.json
 template/eggs/minecraft/mcdr-server-neoforge-legacy.json
 template/eggs/minecraft/server-neoforge-legacy.json
 template/eggs/minecraft/server-neoforge.json
+template/eggs/minecraft/mcdr-proxy-velocity.json
+template/eggs/minecraft/proxy-velocity.json
