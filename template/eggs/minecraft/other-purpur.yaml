@@ -3,7 +3,7 @@ meta:
   version: PTDL_v2
   update_url:
 exported_at: "2024-06-02T11:09:31+08:00"
-name: Other | Purpur
+name: Minecraft > Other | Purpur
 author: no-reply@trcloud.tech
 description:
 features:
@@ -44,14 +44,13 @@ scripts:
     container: debian
     entrypoint: sh
 variables:
-  # 管理员参数
   - name: 包装参数
     description: |-
       在 `java` 命令之前传入的参数
     env_variable: OPTIONS
     default_value: ""
-    user_viewable: false
-    user_editable: false
+    user_viewable: true
+    user_editable: true
     rules: nullable|string
     field_type: text
   - name: 虚拟机参数
@@ -59,8 +58,8 @@ variables:
       添加在 `-jar` 参数前的参数
     env_variable: JAVA_OPTIONS
     default_value: ""
-    user_viewable: false
-    user_editable: false
+    user_viewable: true
+    user_editable: true
     rules: nullable|string
     field_type: text
   - name: 服务端参数
@@ -68,11 +67,10 @@ variables:
       传递给服务端的服务端参数
     env_variable: SERVER_OPTIONS
     default_value: ""
-    user_viewable: false
-    user_editable: false
+    user_viewable: true
+    user_editable: true
     rules: nullable|string
     field_type: text
-  # 用户参数
   - name: 服务端核心文件名
     description: 用于启动服务器的服务端核心文件名称
     env_variable: SERVER_JARFILE
@@ -87,7 +85,7 @@ variables:
     env_variable: MAX_MEM
     default_value: "1024"
     user_viewable: true
-    user_editable: false
+    user_editable: true
     rules: required|integer
     field_type: text
   - name: 最小内存参数
@@ -96,6 +94,6 @@ variables:
     env_variable: MIN_MEM
     default_value: "1024"
     user_viewable: true
-    user_editable: false
+    user_editable: true
     rules: required|integer
     field_type: text

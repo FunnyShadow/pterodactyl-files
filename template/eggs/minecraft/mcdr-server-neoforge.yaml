@@ -3,7 +3,7 @@ meta:
   version: PTDL_v2
   update_url:
 exported_at: "2024-06-02T11:09:31+08:00"
-name: Server | NeoForge
+name: Minecraft (MCDR) > Server | NeoForge
 author: no-reply@trcloud.tech
 description:
 features:
@@ -75,8 +75,8 @@ variables:
       在 `java` 命令之前传入的参数
     env_variable: OPTIONS
     default_value: ""
-    user_viewable: false
-    user_editable: false
+    user_viewable: true
+    user_editable: true
     rules: nullable|string
     field_type: text
   - name: 虚拟机参数
@@ -84,8 +84,8 @@ variables:
       添加在 Forge 标准参数前的参数
     env_variable: JAVA_OPTIONS
     default_value: ""
-    user_viewable: false
-    user_editable: false
+    user_viewable: true
+    user_editable: true
     rules: nullable|string
     field_type: text
   - name: 服务端参数
@@ -93,8 +93,8 @@ variables:
       传递给服务端的服务端参数
     env_variable: SERVER_OPTIONS
     default_value: ""
-    user_viewable: false
-    user_editable: false
+    user_viewable: true
+    user_editable: true
     rules: nullable|string
     field_type: text
   # 用户参数
@@ -112,7 +112,7 @@ variables:
     env_variable: MAX_MEM
     default_value: "1024"
     user_viewable: true
-    user_editable: false
+    user_editable: true
     rules: required|integer
     field_type: text
   - name: 最小内存参数
@@ -121,6 +121,6 @@ variables:
     env_variable: MIN_MEM
     default_value: "1024"
     user_viewable: true
-    user_editable: false
+    user_editable: true
     rules: required|integer
     field_type: text
