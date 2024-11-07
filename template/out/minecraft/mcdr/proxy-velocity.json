@@ -1,0 +1,115 @@
+{
+    "_comment": "DO NOT EDIT: FILE GENERATED AUTOMATICALLY BY minecraft PANEL - minecraft.IO",
+    "meta": {
+        "version": "PTDL_v2",
+        "update_url": null
+    },
+    "exported_at": "2024-06-02T11:09:31+08:00",
+    "name": "Proxy (MCDR) | Velocity",
+    "author": "no-reply@trcloud.tech",
+    "description": null,
+    "features": null,
+    "docker_images": {
+        "Java 21": "bluefunny/minecraft:mcdr-j21",
+        "Java 17": "bluefunny/minecraft:mcdr-j17",
+        "Java 11": "bluefunny/minecraft:mcdr-j11",
+        "Java 8": "bluefunny/minecraft:mcdr-j8"
+    },
+    "file_denylist": [],
+    "startup": "python3.12 -m mcdreforged",
+    "config": {
+        "files": "{\n    \"server/velocity.toml\": {\n        \"parser\": \"file\",\n        \"find\": {\n            \"bind = \": \"bind = \\\"0.0.0.0:{{server.build.default.port}}\\\"\"\n        }\n    },\n    \"config.yml\": {\n        \"parser\": \"yaml\",\n        \"find\": {\n            \"handler\": \"{{env.MCDR_HANDLER}}\",\n            \"start_command\": \"{{env.MCDR_START_COMMAND}}\"\n        }\n    }\n}",
+        "startup": "{\n    \"done\": \"Done (\"\n}",
+        "logs": "{}",
+        "stop": "end"
+    },
+    "scripts": {
+        "installation": {
+            "script": null,
+            "container": "debian",
+            "entrypoint": "sh"
+        }
+    },
+    "variables": [
+        {
+            "name": "\u670d\u52a1\u7aef\u5904\u7406\u5668",
+            "description": "MCDR \u914d\u7f6e\u6587\u4ef6\u4e2d\u7684 `handler` \u9009\u9879\u7684\u503c",
+            "env_variable": "MCDR_HANDLER",
+            "default_value": "velocity_handler",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "required",
+            "field_type": "text"
+        },
+        {
+            "name": "\u670d\u52a1\u5668\u542f\u52a8\u547d\u4ee4",
+            "description": "MCDR \u914d\u7f6e\u6587\u4ef6\u4e2d\u7684 `start_command` \u9009\u9879\u7684\u503c",
+            "env_variable": "MCDR_START_COMMAND",
+            "default_value": "${OPTIONS} java -Xms${MIN_MEM}M -Xmx${MAX_MEM}M ${JAVA_OPTIONS} -jar ${SERVER_JARFILE} ${SERVER_OPTIONS}",
+            "user_viewable": false,
+            "user_editable": false,
+            "rules": "required",
+            "field_type": "text"
+        },
+        {
+            "name": "\u670d\u52a1\u7aef\u6838\u5fc3\u6587\u4ef6\u540d",
+            "description": "\u7528\u4e8e\u542f\u52a8\u670d\u52a1\u5668\u7684\u670d\u52a1\u7aef\u6838\u5fc3\u6587\u4ef6\u540d",
+            "env_variable": "SERVER_JARFILE",
+            "default_value": "server.jar",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|regex:/^([\\w\\d._-]+)(\\.jar)$/",
+            "field_type": "text"
+        },
+        {
+            "name": "\u670d\u52a1\u7aef\u53c2\u6570",
+            "description": "\u4f20\u9012\u7ed9\u670d\u52a1\u7aef\u6838\u5fc3\u7684\u53c2\u6570",
+            "env_variable": "SERVER_OPTIONS",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string",
+            "field_type": "text"
+        },
+        {
+            "name": "\u6700\u5927\u5185\u5b58",
+            "description": "\u7528\u4e8e\u6307\u5b9a\u8fd0\u884c\u8be5\u670d\u52a1\u5668\u6240\u4f7f\u7528\u7684\u6700\u5927\u5185\u5b58, \u5355\u4f4d\u4e3a MB",
+            "env_variable": "MAX_MEM",
+            "default_value": "1024",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer",
+            "field_type": "text"
+        },
+        {
+            "name": "\u6700\u5c0f\u5185\u5b58",
+            "description": "\u7528\u4e8e\u6307\u5b9a\u8fd0\u884c\u8be5\u670d\u52a1\u5668\u6240\u4f7f\u7528\u7684\u6700\u5c0f\u5185\u5b58, \u5355\u4f4d\u4e3a MB",
+            "env_variable": "MIN_MEM",
+            "default_value": "1024",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "required|integer",
+            "field_type": "text"
+        },
+        {
+            "name": "\u5305\u88c5\u5668\u53c2\u6570",
+            "description": "\u5728 `java` \u547d\u4ee4\u4e4b\u524d\u6dfb\u52a0\u7684\u53c2\u6570",
+            "env_variable": "OPTIONS",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string",
+            "field_type": "text"
+        },
+        {
+            "name": "\u865a\u62df\u673a\u53c2\u6570",
+            "description": "\u6dfb\u52a0\u5728 `-jar` \u53c2\u6570\u524d\u7684\u53c2\u6570",
+            "env_variable": "JAVA_OPTIONS",
+            "default_value": "",
+            "user_viewable": true,
+            "user_editable": true,
+            "rules": "nullable|string",
+            "field_type": "text"
+        }
+    ]
+}

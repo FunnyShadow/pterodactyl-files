@@ -1,0 +1,128 @@
+_comment: "DO NOT EDIT: FILE GENERATED AUTOMATICALLY BY minecraft PANEL - minecraft.IO"
+meta:
+  version: PTDL_v2
+  update_url:
+exported_at: "2024-06-02T11:09:31+08:00"
+name: Server (MCDR) | Forge (Alternative)
+author: no-reply@trcloud.tech
+description:
+features:
+docker_images:
+  "Java 21": "bluefunny/minecraft:mcdr-j21"
+  "Java 17": "bluefunny/minecraft:mcdr-j17"
+  "Java 11": "bluefunny/minecraft:mcdr-j11"
+  "Java 8": "bluefunny/minecraft:mcdr-j8"
+file_denylist: []
+startup: python3.12 -m mcdreforged
+config:
+  files: |-
+    {
+        "server/server.properties": {
+            "parser": "properties",
+            "find": {
+                "server-ip": "0.0.0.0",
+                "server-port": "{{server.build.default.port}}",
+                "query.port": "{{server.build.default.port}}"
+            }
+        },
+        "server/eula.txt": {
+            "parser": "properties",
+            "find": {
+                "eula": "true"
+            }
+        },
+        "config.yml": {
+            "parser": "yaml",
+            "find": {
+                "handler": "{{env.MCDR_HANDLER}}",
+                "start_command": "{{env.MCDR_START_COMMAND}}"
+            }
+        }
+    }
+  startup: |-
+    {
+        "done": ")! For help, type "
+    }
+  logs: "{}"
+  stop: stop
+scripts:
+  installation:
+    script:
+    container: debian
+    entrypoint: sh
+variables:
+  # 环境特定变量
+  - name: 服务端处理器
+    description: |-
+      MCDR 配置文件中的 `handler` 选项的值
+    env_variable: MCDR_HANDLER
+    default_value: forge_handler
+    user_viewable: false
+    user_editable: false
+    rules: required
+    field_type: text
+  - name: 服务器启动命令
+    description: |-
+      MCDR 配置文件中的 `start_command` 选项的值
+    env_variable: MCDR_START_COMMAND
+    default_value: "${OPTIONS} java -Xms${MIN_MEM}M -Xmx${MAX_MEM}M ${JAVA_OPTIONS} -jar ${SERVER_JARFILE} ${SERVER_OPTIONS}"
+    user_viewable: false
+    user_editable: false
+    rules: required
+    field_type: text
+  # 服务端变量
+  - name: 服务端核心文件名
+    description: |-
+      用于启动服务器的 Forge 服务端核心文件名
+    env_variable: SERVER_JARFILE
+    default_value: "server.jar"
+    user_viewable: true
+    user_editable: true
+    rules: required|regex:/^([\w\d._-]+)(\.jar)$/
+    field_type: text
+  - name: 服务端参数
+    description: |-
+      传递给 Forge 服务端核心的参数
+    env_variable: SERVER_OPTIONS
+    default_value: ""
+    user_viewable: true
+    user_editable: true
+    rules: nullable|string
+    field_type: text
+  - name: 最大内存
+    description: |-
+      用于指定运行该服务器所使用的最大内存, 单位为 MB
+    env_variable: MAX_MEM
+    default_value: "1024"
+    user_viewable: true
+    user_editable: true
+    rules: required|integer
+    field_type: text
+  - name: 最小内存
+    description: |-
+      用于指定运行该服务器所使用的最小内存, 单位为 MB
+    env_variable: MIN_MEM
+    default_value: "1024"
+    user_viewable: true
+    user_editable: true
+    rules: required|integer
+    field_type: text
+  # 系统变量
+  - name: 包装器参数
+    description: |-
+      在 `java` 命令之前添加的参数
+    env_variable: OPTIONS
+    default_value: ""
+    user_viewable: true
+    user_editable: true
+    rules: nullable|string
+    field_type: text
+  - name: 虚拟机参数
+    description: |-
+      添加在 `-jar` 参数前的参数
+    env_variable: JAVA_OPTIONS
+    default_value: ""
+    user_viewable: true
+    user_editable: true
+    rules: nullable|string
+    field_type: text
