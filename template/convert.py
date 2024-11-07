@@ -1,62 +1,77 @@
 import argparse
 import json
-import sys
 import os
-from ruamel.yaml import YAML, RoundTripRepresenter
+from ruamel.yaml import YAML
 
-def repr_str(dumper: RoundTripRepresenter, s: str):
-    if '\n' in s:
-        return dumper.represent_scalar('tag:yaml.org,2002:str', s, style='|')
-    return dumper.represent_scalar('tag:yaml.org,2002:str', s)
 
 def get_parser(name: str):
-    if name.endswith('.yml') or name.endswith('yaml'):
+    if name.lower().endswith((".yml", ".yaml")):
         yaml = YAML()
-        yaml.width = 2 ** 20
-        yaml.representer.add_representer(str, repr_str)
+        yaml.width = 2**20
         return yaml
+    return json
+
+
+def convert_file(input_file: str, output_dir: str, mode: str):
+    output_ext = ".yml" if mode == "j2y" else ".json"
+    if output_dir:
+        output_file = os.path.join(
+            output_dir, os.path.basename(os.path.splitext(input_file)[0]) + output_ext
+        )
     else:
-        return json
-
-def convert_file(input_file, output_file, mode):
-    with open(input_file, encoding='utf8') as f:
-        try:
-            data = get_parser(input_file).load(f)
-        except ValueError as e:
-            print(f'Failed to load {input_file}: {e}', file=sys.stderr)
-            return
-
-    output_ext = '.yml' if mode == 'j2y' else '.json'
-    if output_file is None:
         output_file = os.path.splitext(input_file)[0] + output_ext
 
-    with open(output_file, 'w', encoding='utf8') as f:
-        kwargs = {'indent': 4} if mode == 'y2j' else {}
-        get_parser(output_file).dump(data, f, **kwargs)
+    os.makedirs(os.path.dirname(output_file), exist_ok=True)
 
-def convert_directory(directory, mode):
-    for root, _, files in os.walk(directory):
+    try:
+        with open(input_file, encoding="utf8") as f:
+            data = get_parser(input_file).load(f)
+
+        with open(output_file, "w", encoding="utf8") as f:
+            kwargs = {"indent": 4} if mode == "y2j" else {}
+            get_parser(output_file).dump(data, f, **kwargs)
+    except Exception as e:
+        print(f"Conversion failed {input_file}: {e}")
+
+
+def convert_directory(input_dir: str, output_dir: str, mode: str):
+    for root, _, files in os.walk(input_dir):
         for file in files:
-            input_file = os.path.join(root, file)
-            if mode == 'y2j' and file.endswith('.yml') or file.endswith('.yaml'):
-                convert_file(input_file, None, mode)
-            elif mode == 'j2y' and file.endswith('.json'):
-                convert_file(input_file, None, mode)
+            if (mode == "y2j" and file.lower().endswith((".yml", ".yaml"))) or (
+                mode == "j2y" and file.lower().endswith(".json")
+            ):
+
+                input_file = os.path.join(root, file)
+                if output_dir:
+                    rel_path = os.path.relpath(root, input_dir)
+                    current_output_dir = os.path.join(output_dir, rel_path)
+                else:
+                    current_output_dir = root
+
+                convert_file(input_file, current_output_dir, mode)
+
 
 def main():
-    parser = argparse.ArgumentParser(description='egg builder tools')
-
-    parser.add_argument('-m', '--mode', choices=['y2j', 'j2y'], required=True, help='Conversion mode (y2j: YAML to JSON, j2y: JSON to YAML)')
+    parser = argparse.ArgumentParser(description="YAML and JSON converter")
+    parser.add_argument(
+        "-m",
+        "--mode",
+        choices=["y2j", "j2y"],
+        required=True,
+        help="Conversion mode (y2j: YAML to JSON, j2y: JSON to YAML)",
+    )
     group = parser.add_mutually_exclusive_group(required=True)
-    group.add_argument('-d', '--directory', help='Directory to convert files')
-    group.add_argument('-f', '--file', help='Single file to convert')
+    group.add_argument("-d", "--directory", help="Directory to convert")
+    group.add_argument("-f", "--file", help="Single file to convert")
+    parser.add_argument("-o", "--output", help="Output directory")
 
     args = parser.parse_args()
 
     if args.directory:
-        convert_directory(args.directory, args.mode)
+        convert_directory(args.directory, args.output, args.mode)
     else:
-        convert_file(args.file, None, args.mode)
+        convert_file(args.file, args.output, args.mode)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
