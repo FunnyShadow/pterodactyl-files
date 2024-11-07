@@ -33,7 +33,7 @@ config:
     }
   startup: |-
     {
-        "(ViaProxy)": "ViaProxy started successfully!"
+        "done": "Binding proxy server to"
     }
   logs: "{}"
   stop: exit
